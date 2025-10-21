@@ -26,3 +26,9 @@
 * RAG: LangChain, SciBERT
 * LLM: Argo or AskSage
 * Other: Docker or conda env
+  
+<br>
+
+<div align="center">
+<img src="assets/ANL-logo.png" alt="Argonne National Laboratory Logo" height="200" width="200"/>
+</div>
