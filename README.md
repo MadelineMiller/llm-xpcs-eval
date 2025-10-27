@@ -33,7 +33,7 @@
   <table border="0" style="border-collapse: separate; border-spacing: 30px;">
     <tr>
       <td align="center" style="border: none;">
-        <img src="assets/ANL-logo.png" alt="Argonne National Laboratory Logo" height="200" width="220" style="border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08); border: 2px solid #e5e7eb;"/>
+        <img src="assets/ANL-logo.png" alt="Argonne National Laboratory Logo" height="200" width="270" style="border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08); border: 2px solid #e5e7eb;"/>
       </td>
     </tr>
   </table>
