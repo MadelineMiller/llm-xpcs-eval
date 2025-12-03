@@ -8,6 +8,7 @@ import os
 from tqdm import tqdm
 import uuid
 from pathlib import Path
+from config import RETRIEVAL_CONFIG
 
 load_dotenv()
 
@@ -56,8 +57,8 @@ def ingest_documents():
     
     print("\nSplitting documents into chunks...")
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
+        chunk_size=RETRIEVAL_CONFIG['chunk_size'],
+        chunk_overlap=RETRIEVAL_CONFIG['chunk_overlap'],
         length_function=len,
     )
     chunks = text_splitter.split_documents(all_documents)

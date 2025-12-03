@@ -21,7 +21,7 @@ client = QdrantClient(
 )
 
 # Argo API configuration
-ARGO_API_URL = "https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/"
+ARGO_API_URL = os.getenv('ARGO_API_URL', 'https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/')
 ARGO_USER = os.getenv('ARGO_USER', 'your_anl_username')
 
 print("Ready!")
@@ -181,4 +181,19 @@ async def main(message: cl.Message):
         response = f"{answer}\n\n---\n\n**Note:** No passages met the relevance threshold of {RETRIEVAL_CONFIG['relevance_threshold']:.0%}. Answer based on general XPCS knowledge."
     
     msg.content = response
+
+    # actions = [
+    #     cl.Action(name="feedback_good", value="good", label="👍 Helpful"),
+    #     cl.Action(name="feedback_bad", value="bad", label="👎 Not helpful")
+    # ]
+    # msg.actions = actions
+
+    # @cl.action_callback("feedback_good")
+    # async def on_good_feedback(action):
+    #     await cl.Message(content="Thanks for the feedback!").send()
+
+    # @cl.action_callback("feedback_bad")
+    # async def on_bad_feedback(action):
+    #     await cl.Message(content="Thanks for the feedback. We'll work on improving!").send()
+
     await msg.update()

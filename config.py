@@ -10,21 +10,28 @@ RETRIEVAL_CONFIG = {
     
     # Chunk size for document splitting (already set during ingestion)
     # To change this, you need to re-run ingest_documents.py
-    'chunk_size': 1000,
-    'chunk_overlap': 200,
+    'chunk_size': 1500,
+    'chunk_overlap': 300,
 }
 
-# LLM Configuration
+# # LLM Configuration
+# LLM_CONFIG = {
+#     # Argo model to use
+#     'model': 'gpt4o',
+    
+#     # Temperature (0-2): Higher = more creative, Lower = more focused
+#     'temperature': 0.7,
+    
+#     # Max tokens in response
+#     'max_tokens': 2000,
+    
+#     # Number of conversation turns to remember (each turn = 1 Q&A pair)
+#     'conversation_memory': 5,
+# }
+
 LLM_CONFIG = {
-    # Argo model to use
-    'model': 'gpt4o',
-    
-    # Temperature (0-2): Higher = more creative, Lower = more focused
+    'model': 'claudesonnet45',
     'temperature': 0.7,
-    
-    # Max tokens in response
     'max_tokens': 2000,
-    
-    # Number of conversation turns to remember (each turn = 1 Q&A pair)
     'conversation_memory': 5,
 }
