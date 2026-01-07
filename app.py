@@ -35,7 +35,7 @@ client = QdrantClient(
 )
 
 # Argo API configuration
-ARGO_API_URL = os.getenv('ARGO_API_URL', 'https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/')
+ARGO_API_URL = "https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/"
 ARGO_USER = os.getenv('ARGO_USER', 'your_anl_username')
 
 print("Ready!")
