@@ -6,6 +6,54 @@ import os
 import requests
 from config import RETRIEVAL_CONFIG, LLM_CONFIG
 
+# ============================================================================
+# DEMO HELPER FUNCTIONS
+# ============================================================================
+
+def get_confidence_level(top_score):
+    """
+    Visual confidence indicator based on retrieval score
+    
+    Args:
+        top_score (float): Highest similarity score from retrieval
+        
+    Returns:
+        tuple: (emoji, description)
+    """
+    if top_score > 0.07:
+        return "🟢 High confidence", "Excellent source match"
+    elif top_score > 0.05:
+        return "🟡 Good confidence", "Good source match"
+    elif top_score > 0.03:
+        return "🟠 Moderate confidence", "Moderate source match"
+    else:
+        return "🔴 Low confidence", "Weak source match - answer may be generic"
+
+
+def format_sources_with_scores(results):
+    """
+    Format sources with visual score bars
+    
+    Args:
+        results: List of Qdrant search results
+        
+    Returns:
+        str: Formatted sources text with scores
+    """
+    sources_text = "**Sources consulted:**\n"
+    
+    for i, result in enumerate(results, 1):
+        # Create visual score bar (scale to reasonable length)
+        score_bar = "█" * min(int(result.score * 100), 10)  # Cap at 10 blocks
+        
+        sources_text += (
+            f"[{i}] {result.payload['filename']} "
+            f"(Page {result.payload['page']}) - "
+            f"Score: {result.score:.4f} {score_bar}\n"
+        )
+    
+    return sources_text
+
 load_dotenv()
 
 # Initialize once at startup
@@ -62,24 +110,59 @@ async def start():
     cl.user_session.set("conversation_history", [])
     
     # System prompt
+#     system_prompt = {
+#         "role": "system",
+#         "content": """You are an expert assistant for X-ray Photon Correlation Spectroscopy (XPCS) 
+# at Argonne National Laboratory's Advanced Photon Source, beamline 8-ID.
+
+# Your role is to:
+# 1. Answer questions about XPCS theory, techniques, and applications
+# 2. Help users evaluate experimental hypotheses and feasibility
+# 3. Provide guidance on sample requirements and experimental design
+# 4. Base your answers on the provided scientific literature context
+# 5. Cite sources when possible using the [Source N] references
+# 6. Be honest when information is not available in the context
+# 7. Remember previous questions in the conversation to provide contextual answers
+
+# Maintain a professional, helpful tone suitable for beamline users ranging from students to senior scientists."""
+#     }
+        
+    # System prompt - properly formatted as a message dict
     system_prompt = {
-        "role": "system",
-        "content": """You are an expert assistant for X-ray Photon Correlation Spectroscopy (XPCS) 
-at Argonne National Laboratory's Advanced Photon Source, beamline 8-ID.
+            "role": "system",
+            "content": """You are Argo, an expert AI assistant for X-ray Photon Correlation Spectroscopy (XPCS) at Argonne National Laboratory's Advanced Photon Source.
 
-Your role is to:
-1. Answer questions about XPCS theory, techniques, and applications
-2. Help users evaluate experimental hypotheses and feasibility
-3. Provide guidance on sample requirements and experimental design
-4. Base your answers on the provided scientific literature context
-5. Cite sources when possible using the [Source N] references
-6. Be honest when information is not available in the context
-7. Remember previous questions in the conversation to provide contextual answers
+            **Your Primary Responsibilities:**
+            - Answer questions about XPCS theory, techniques, and applications
+            - Help evaluate experimental hypotheses and feasibility
+            - Provide guidance on sample requirements and experimental design
+            - Maintain conversation context for follow-up questions
 
-Maintain a professional, helpful tone suitable for beamline users ranging from students to senior scientists."""
+            **CRITICAL RULES - Information Integrity:**
+
+            1. **Source Attribution:**
+            - ONLY make specific claims supported by the provided context
+            - Always cite sources using [Source N] format when available
+            
+            2. **Handling Missing Information:**
+            - If context lacks specific details (beamline specs, parameters, etc.), explicitly state:
+                > "The retrieved literature doesn't contain specific information about [topic]. However, based on general XPCS principles..."
+            
+            3. **Prohibited Actions:**
+            - DO NOT invent beamline specifications
+            - DO NOT fabricate experimental parameters
+            - DO NOT create false citations
+            - DO NOT answer questions about other facilities without clarification
+
+            4. **Uncertainty Handling:**
+            - When uncertain, acknowledge limitations clearly
+            - Distinguish between context-based answers and general scientific knowledge
+
+            **Tone:** Professional and helpful, suitable for users from students to senior scientists."""
     }
-    
+        
     cl.user_session.set("system_prompt", system_prompt)
+
     
     await cl.Message(
         content="Welcome to the XPCS Hypothesis Evaluator!\n\n"
@@ -110,6 +193,7 @@ async def main(message: cl.Message):
         query=query_vector,
         limit=RETRIEVAL_CONFIG['num_results']
     )
+    
     
     # Filter by relevance threshold and format context
     context_parts = []
@@ -151,9 +235,9 @@ async def main(message: cl.Message):
     else:
         context_message = f"""No highly relevant passages found in the XPCS literature database (all results below {RETRIEVAL_CONFIG['relevance_threshold']:.0%} relevance threshold).
 
-    User question: {message.content}
+                            User question: {message.content}
 
-    Please provide a general answer based on your knowledge of XPCS, but clearly state that this is not based on the specific literature in the database."""
+                            Please provide a general answer based on your knowledge of XPCS, but clearly state that this is not based on the specific literature in the database."""
     
     # Build messages for Argo API
     messages = [system_prompt]
