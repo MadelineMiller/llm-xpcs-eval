@@ -67,13 +67,6 @@
 - Docker (Qdrant container)
 - Conda environment: `xpcs-llm` (Python dependencies)
 
-**Key Libraries:**
-- `chainlit` - Chat UI
-- `langchain-community` - RAG utilities
-- `qdrant-client` - Vector database client
-- `sentence-transformers` - SciBERT embeddings
-- `requests` - Argo API calls
-
 ## Overall Architecture of the Desired System
 ![Hypothesis-Driven Physical Science via LLM (XPCS Example)](assets/llm-xpcs-example-slide.png)
   
