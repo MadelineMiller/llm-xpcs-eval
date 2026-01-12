@@ -18,14 +18,14 @@
 
 ## Repository Structure
 llm-xpcs-eval/
-├── context/                    # Document acquisition
-│   └── download_context_docs.py   # Selenium scraper for Google Scholar PDFs
-├── rag/                        # RAG pipeline components
-│   ├── ingest_documents.py        # PDF -> chunks -> embeddings -> Qdrant
-│   └── test_retrieval.py          # Test vector search
-├── app.py                      # Main Chainlit chat interface
-├── config.py                   # Hyperparameters (retrieval, LLM)
-└── docker-compose.yml          # Infrastructure (Qdrant vector DB)
+|-- context/                    # Document acquisition  
+│   |-- download_context_docs.py   # Selenium scraper for Google Scholar PDFs  
+|-- rag/                        # RAG pipeline components  
+│   |-- ingest_documents.py        # PDF -> chunks -> embeddings -> Qdrant  
+│   |-- test_retrieval.py          # Test vector search  
+|-- app.py                      # Main Chainlit chat interface  
+|-- config.py                   # Hyperparameters (retrieval, LLM)  
+|-- docker-compose.yml          # Infrastructure (Qdrant vector DB)  
 
 ## Data Flow
 
