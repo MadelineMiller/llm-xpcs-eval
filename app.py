@@ -227,27 +227,32 @@ async def main(message: cl.Message):
     # ========================================================================
     cl.user_session.set("last_context", context_parts)
     cl.user_session.set("last_results", results.points)
-    
+        
     # Build context string
     if context_parts:
         context = "\n\n".join(context_parts)
-        context_message = f"""You have been provided with relevant excerpts from XPCS scientific literature below. Use this information to answer the user's question.
+        context_message = f"""You have been provided with relevant excerpts from XPCS scientific literature below.
 
-Context from XPCS literature:
+        CRITICAL INSTRUCTIONS:
+        1. Build your answer EXCLUSIVELY from the provided passages
+        2. When a passage contains a formula or specific definition, INCLUDE IT VERBATIM
+        3. Quote exact phrases when they define key concepts
+        4. Cite sources INLINE as you make each claim, not just at the end
+        5. If a passage is not relevant to the question, DO NOT cite it
+        6. Prioritize passages with higher scores (they are more relevant)
 
-{context}
+        Context from XPCS literature:
 
-User question: {message.content}
+        {context}
 
-Instructions: Provide a comprehensive answer based on the context above. Cite sources using [Source N] notation. The context IS relevant to XPCS - use it to inform your answer."""
+        User question: {message.content}
+
+        Answer format:
+        - Start with the most relevant passage (highest score)
+        - Quote or paraphrase specific sentences
+        - Include formulas and definitions exactly as written
+        - Cite [Source N] immediately after each claim"""
         
-    else:
-        context_message = f"""No highly relevant passages found in the XPCS literature database (all results below {RETRIEVAL_CONFIG['relevance_threshold']:.0%} relevance threshold).
-
-User question: {message.content}
-
-Please provide a general answer based on your knowledge of XPCS, but clearly state that this is not based on the specific literature in the database."""
-    
     # Build messages for Argo API
     messages = [system_prompt]
     
