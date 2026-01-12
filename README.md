@@ -46,6 +46,9 @@
 7. LLM generates response with source citations
 8. Answer displayed in Chainlit with paper names and page numbers
 
+## Architecture of Ingestion & Query Processing
+![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
+
 ## Tech Stack
 
 **Frontend:** Chainlit (web-based chat interface)
