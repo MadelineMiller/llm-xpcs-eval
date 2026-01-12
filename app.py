@@ -114,6 +114,15 @@ async def main(message: cl.Message):
     # Filter by relevance threshold and format context
     context_parts = []
     sources = []
+
+    # DEBUG: Print all scores
+    print(f"\n{'='*60}")
+    print(f"Query: {message.content}")
+    print(f"Retrieved {len(results.points)} results:")
+    for idx, result in enumerate(results.points, 1):
+        print(f"  [{idx}] Score: {result.score:.4f} | {os.path.basename(result.payload['source'])}")
+    print(f"Threshold: {RETRIEVAL_CONFIG['relevance_threshold']}")
+    print(f"{'='*60}\n")
     
     for idx, result in enumerate(results.points, 1):
         if result.score < RETRIEVAL_CONFIG['relevance_threshold']:

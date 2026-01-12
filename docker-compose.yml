@@ -13,10 +13,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: xpcs-qdrant
-    ports:
+  qdrant: # docker compose is a tool that reads this docker-compose.yml file and manages qdrant docker container
+    image: qdrant/qdrant:latest # docker image (blueprint)
+    container_name: xpcs-qdrant # docker container (running instance of that image)
+    ports: 
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage

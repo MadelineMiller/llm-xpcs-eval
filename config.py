@@ -6,7 +6,7 @@ RETRIEVAL_CONFIG = {
     # Minimum similarity score (0-1) to include a passage
     # Higher = more strict, only very relevant passages
     # Lower = more permissive, includes somewhat relevant passages
-    'relevance_threshold': 0.55,
+    'relevance_threshold': 0.01,
     
     # Chunk size for document splitting (already set during ingestion)
     # To change this, you need to re-run ingest_documents.py
