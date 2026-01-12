@@ -10,25 +10,6 @@ from config import RETRIEVAL_CONFIG, LLM_CONFIG
 # DEMO HELPER FUNCTIONS
 # ============================================================================
 
-def get_confidence_level(top_score):
-    """
-    Visual confidence indicator based on retrieval score
-    
-    Args:
-        top_score (float): Highest similarity score from retrieval
-        
-    Returns:
-        tuple: (emoji, description)
-    """
-    if top_score > 0.07:
-        return "🟢 High confidence", "Excellent source match"
-    elif top_score > 0.05:
-        return "🟡 Good confidence", "Good source match"
-    elif top_score > 0.03:
-        return "🟠 Moderate confidence", "Moderate source match"
-    else:
-        return "🔴 Low confidence", "Weak source match - answer may be generic"
-
 
 def format_sources_with_scores(results):
     """
@@ -43,13 +24,11 @@ def format_sources_with_scores(results):
     sources_text = "**Sources consulted:**\n"
     
     for i, result in enumerate(results, 1):
-        # Create visual score bar (scale to reasonable length)
-        score_bar = "█" * min(int(result.score * 100), 10)  # Cap at 10 blocks
         
         sources_text += (
             f"[{i}] {os.path.basename(result.payload['source'])} "
             f"(Page {result.payload['page']}) - "
-            f"Score: {result.score:.4f} {score_bar}\n"
+            f"Score: {result.score:.4f}\n"
         )
     
     return sources_text
@@ -229,11 +208,6 @@ async def main(message: cl.Message):
         query=query_vector,
         limit=RETRIEVAL_CONFIG['num_results']
     )
-
-    # ========================================================================
-    # Get confidence level
-    # ========================================================================
-    confidence_emoji, confidence_text = get_confidence_level(results.points[0].score)
     
     # Filter by relevance threshold and format context
     context_parts = []
@@ -260,23 +234,23 @@ async def main(message: cl.Message):
         context_parts.append(f"[Source {idx}: {source}, Page {page}]\n{text}")
         sources.append(f"[{idx}] {source} (Page {page})")
     
-    # ========================================================================
     # Store context and results for "Show Context" button
-    # ========================================================================
     cl.user_session.set("last_context", context_parts)
     cl.user_session.set("last_results", results.points)
-        
+    
     # Build context string
     if context_parts:
         context = "\n\n".join(context_parts)
         context_message = f"""You have been provided with relevant excerpts from XPCS scientific literature below.
 
-INSTRUCTIONS:
+CRITICAL INSTRUCTIONS:
 1. Build your answer from these passages
 2. Quote or paraphrase specific sentences
 3. Include formulas exactly as written
 4. Cite sources inline using [Source N]
 5. Use LaTeX for mathematical expressions
+6. IMPORTANT: When citing [Source N], make sure N matches the source number in the context below
+7. DO NOT cite a source number that doesn't appear in the context
 
 Context from XPCS literature:
 
@@ -284,7 +258,7 @@ Context from XPCS literature:
 
 User question: {message.content}
 
-Provide a comprehensive answer based on the passages above. Make it clear which passage supports each claim."""
+Provide a comprehensive answer based on the passages above. Make it clear which passage supports each claim. Double-check that your [Source N] citations match the source numbers in the context."""
         
     else:
         context_message = f"""No highly relevant passages found in the XPCS literature database (all results below {RETRIEVAL_CONFIG['relevance_threshold']:.0%} relevance threshold).
@@ -292,10 +266,10 @@ Provide a comprehensive answer based on the passages above. Make it clear which 
 User question: {message.content}
 
 Since no relevant passages were retrieved, clearly state:
-"The literature database doesn't contain specific information about this topic. Based on general XPCS knowledge..."
+"The literature database doesn't contain specific information about this topic. For information about [topic], please consult [appropriate resource]."
 
-Then provide a general answer, making it clear this is NOT from the database."""
-        
+Do NOT attempt to answer from general knowledge."""
+    
     # Build messages for Argo API
     messages = [system_prompt]
     
@@ -322,48 +296,57 @@ Then provide a general answer, making it clear this is NOT from the database."""
     })
     cl.user_session.set("conversation_history", conversation_history)
     
-    # ========================================================================
     # Format sources with scores
-    # ========================================================================
     sources_with_scores = format_sources_with_scores(results.points[:len(sources)])
     
     # ========================================================================
-    # Create "Show Context" button
+    # Check if LLM acknowledged missing information
     # ========================================================================
-    actions = [
-        cl.Action(
-            name="show_context",
-            payload={"action": "show_context"},  # ✅ Required field
-            label="📄 Show Retrieved Context",
-            description="See the exact passages used to generate this answer"
-        )
+    missing_info_phrases = [
+        "does not contain specific information",
+        "doesn't contain specific information",
+        "literature does not provide",
+        "literature doesn't provide",
+        "no specific information",
+        "not found in the literature"
     ]
     
+    acknowledged_missing = any(phrase.lower() in answer.lower() for phrase in missing_info_phrases)
+    
     # ========================================================================
-    # Format final response with confidence indicator and enhanced sources
+    # Conditionally create "Show Context" button
+    # ========================================================================
+    if acknowledged_missing:
+        # Don't show context button if LLM said info is missing
+        actions = []
+    else:
+        # Show context button if LLM used the context
+        actions = [
+            cl.Action(
+                name="show_context",
+                payload={"action": "show_context"},
+                label="📄 Show Retrieved Context",
+                description="See the exact passages used to generate this answer"
+            )
+        ]
+    
+    # ========================================================================
+    # Format final response WITHOUT confidence indicator
     # ========================================================================
     if sources:
-        response = f"""{confidence_emoji} **{confidence_text}**
-
-{answer}
+        response = f"""{answer}
 
 ---
 
 {sources_with_scores}"""
     else:
-        response = f"""{confidence_emoji} **{confidence_text}**
-
-{answer}
+        response = f"""{answer}
 
 ---
 
 **Note:** No passages met the relevance threshold of {RETRIEVAL_CONFIG['relevance_threshold']:.0%}. Answer based on general XPCS knowledge."""
     
     msg.content = response
-    
-    # ========================================================================
-    # Update message with actions (button)
-    # ========================================================================
     msg.actions = actions
     
     await msg.update()
