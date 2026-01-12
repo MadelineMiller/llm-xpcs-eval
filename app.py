@@ -4,20 +4,6 @@ from qdrant_client import QdrantClient
 from dotenv import load_dotenv
 import os
 import requests
-import sys
-import warnings
-import logging
-
-# Add database directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'database'))
-from db_manager import create_session, save_message, get_chat_history, update_session_activity
-
-# Suppress warnings
-warnings.filterwarnings('ignore')
-logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
-logging.getLogger('httpx').setLevel(logging.WARNING)
-
-# Import config
 from config import RETRIEVAL_CONFIG, LLM_CONFIG
 
 load_dotenv()
@@ -35,63 +21,44 @@ client = QdrantClient(
 )
 
 # Argo API configuration
-ARGO_API_URL = "https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/"
+ARGO_API_URL = os.getenv('ARGO_API_URL', 'https://apps.inside.anl.gov/argoapi/api/v1/resource/chat/')
 ARGO_USER = os.getenv('ARGO_USER', 'your_anl_username')
 
 print("Ready!")
 
-def call_argo_llm(messages, max_retries=2):
-    """Call Argo API with conversation history and retry logic."""
+def call_argo_llm(messages):
+    """Call Argo API with conversation history."""
     
-    for attempt in range(max_retries):
-        payload = {
-            "user": ARGO_USER,
-            "model": LLM_CONFIG['model'],
-            "messages": messages,
-            "temperature": LLM_CONFIG['temperature'],
-            "max_tokens": LLM_CONFIG['max_tokens']
-        }
+    payload = {
+        "user": ARGO_USER,
+        "model": LLM_CONFIG['model'],
+        "messages": messages,
+        "temperature": LLM_CONFIG['temperature'],
+        "max_tokens": LLM_CONFIG['max_tokens']
+    }
+    
+    try:
+        response = requests.post(ARGO_API_URL, json=payload, timeout=60)
+        response.raise_for_status()
+        result = response.json()
         
-        try:
-            response = requests.post(ARGO_API_URL, json=payload, timeout=60)
-            response.raise_for_status()
-            result = response.json()
+        if 'choices' in result:
+            return result['choices'][0]['message']['content']
+        elif 'response' in result:
+            return result['response']
+        elif 'content' in result:
+            return result['content']
+        else:
+            return f"Unexpected response format: {result}"
             
-            if 'choices' in result:
-                return result['choices'][0]['message']['content']
-            elif 'response' in result:
-                return result['response']
-            elif 'content' in result:
-                return result['content']
-            else:
-                return "Unexpected response format from Argo API. Please try again."
-                
-        except requests.exceptions.Timeout:
-            if attempt < max_retries - 1:
-                continue
-            return "Request timed out. Please try again."
-        except requests.exceptions.ConnectionError:
-            return "Cannot connect to Argo API. Check your VPN connection."
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 401:
-                return "Authentication error. Check your ARGO_USER in .env"
-            elif e.response.status_code == 429:
-                return "Rate limit exceeded. Please wait and try again."
-            return f"API error: {e.response.status_code}"
-        except Exception as e:
-            return f"Error: {str(e)}"
+    except requests.exceptions.RequestException as e:
+        return f"Network error calling Argo API: {str(e)}"
+    except Exception as e:
+        return f"Error calling Argo API: {str(e)}"
 
 @cl.on_chat_start
 async def start():
-    session_id = cl.user_session.get("id")
-    
-    # Create session in database
-    try:
-        create_session(session_id)
-    except Exception as e:
-        print(f"Error creating session: {e}")
-    
-    # Initialize conversation history
+    # Initialize conversation history in user session
     cl.user_session.set("conversation_history", [])
     
     # System prompt
@@ -129,20 +96,6 @@ Maintain a professional, helpful tone suitable for beamline users ranging from s
 
 @cl.on_message
 async def main(message: cl.Message):
-    session_id = cl.user_session.get("id")
-    
-    # Update session activity
-    try:
-        update_session_activity(session_id)
-    except Exception as e:
-        print(f"Error updating session: {e}")
-    
-    # Save user message to database
-    try:
-        save_message(session_id, "user", message.content)
-    except Exception as e:
-        print(f"Error saving user message: {e}")
-    
     msg = cl.Message(content="Searching XPCS literature and generating answer...")
     await msg.send()
     
@@ -163,7 +116,6 @@ async def main(message: cl.Message):
     sources = []
     
     for idx, result in enumerate(results.points, 1):
-        # Only include if above relevance threshold
         if result.score < RETRIEVAL_CONFIG['relevance_threshold']:
             continue
             
@@ -172,25 +124,27 @@ async def main(message: cl.Message):
         text = result.payload['text']
         score = result.score
         
-        context_parts.append(f"[Source {idx}: {source}, Page {page}]\n{text}")
-        sources.append(f"[{idx}] {source} (Page {page})")
+        context_parts.append(f"[Source {idx}: {source}, Page {page}]\n{text}")  # Removed score from context
+        sources.append(f"[{idx}] {source} (Page {page})")  # Removed score from display
     
     # Build context string
     if context_parts:
         context = "\n\n".join(context_parts)
-        context_message = f"""Context from XPCS literature:
+        context_message = f"""You have been provided with relevant excerpts from XPCS scientific literature below. Use this information to answer the user's question.
 
-{context}
+    Context from XPCS literature:
 
-User question: {message.content}
+    {context}
 
-Please provide a comprehensive answer based on the context above. Cite sources using [Source N] notation. If the context doesn't contain enough information, say so clearly."""
+    User question: {message.content}
+
+    Instructions: Provide a comprehensive answer based on the context above. Cite sources using [Source N] notation. The context IS relevant to XPCS - use it to inform your answer."""
     else:
         context_message = f"""No highly relevant passages found in the XPCS literature database (all results below {RETRIEVAL_CONFIG['relevance_threshold']:.0%} relevance threshold).
 
-User question: {message.content}
+    User question: {message.content}
 
-Please provide a general answer based on your knowledge of XPCS, but clearly state that this is not based on the specific literature in the database."""
+    Please provide a general answer based on your knowledge of XPCS, but clearly state that this is not based on the specific literature in the database."""
     
     # Build messages for Argo API
     messages = [system_prompt]
@@ -206,15 +160,6 @@ Please provide a general answer based on your knowledge of XPCS, but clearly sta
     
     # Call Argo LLM
     answer = call_argo_llm(messages)
-    
-    # Save assistant message to database
-    try:
-        save_message(session_id, "assistant", answer, metadata={
-            "sources": sources,
-            "num_sources": len(sources)
-        })
-    except Exception as e:
-        print(f"Error saving assistant message: {e}")
     
     # Update conversation history
     conversation_history.append({
@@ -236,4 +181,19 @@ Please provide a general answer based on your knowledge of XPCS, but clearly sta
         response = f"{answer}\n\n---\n\n**Note:** No passages met the relevance threshold of {RETRIEVAL_CONFIG['relevance_threshold']:.0%}. Answer based on general XPCS knowledge."
     
     msg.content = response
+
+    # actions = [
+    #     cl.Action(name="feedback_good", value="good", label="👍 Helpful"),
+    #     cl.Action(name="feedback_bad", value="bad", label="👎 Not helpful")
+    # ]
+    # msg.actions = actions
+
+    # @cl.action_callback("feedback_good")
+    # async def on_good_feedback(action):
+    #     await cl.Message(content="Thanks for the feedback!").send()
+
+    # @cl.action_callback("feedback_bad")
+    # async def on_bad_feedback(action):
+    #     await cl.Message(content="Thanks for the feedback. We'll work on improving!").send()
+
     await msg.update()
