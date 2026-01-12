@@ -30,11 +30,11 @@ llm-xpcs-eval/
 ## Data Flow
 
 ### Ingestion (One-time Setup)
-1. Google Scholar → 115 XPCS papers downloaded
-2. PDFs loaded → 113 successfully processed
-3. Text extraction → Split into 5,743 chunks (1000 chars, 200 overlap)
-4. SciBERT embeddings → 768-dimensional vectors generated
-5. Qdrant vector database → Vectors stored with metadata (source, page)
+1. Google Scholar -> 115 XPCS papers downloaded
+2. PDFs loaded -> 113 successfully processed
+3. Text extraction -> Split into 5,743 chunks (1000 chars, 200 overlap)
+4. SciBERT embeddings -> 768-dimensional vectors generated
+5. Qdrant vector database -> Vectors stored with metadata (source, page)
 
 ### Query Processing (Runtime)
 1. User submits question via Chainlit UI
