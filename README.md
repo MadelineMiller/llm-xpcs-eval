@@ -46,16 +46,36 @@ llm-xpcs-eval/
 7. LLM generates response with source citations
 8. Answer displayed in Chainlit with paper names and page numbers
 
+## Tech Stack
+
+**Frontend:** Chainlit (web-based chat interface)
+
+**Backend:** Python 3.10
+
+**Databases:** 
+- Qdrant (vector database for embeddings)
+- ~~PostgreSQL~~ (removed - not currently used)
+
+**RAG Pipeline:**
+- LangChain (document loading, text splitting, embedding interface)
+- SciBERT (`allenai/scibert_scivocab_uncased`) - 768-dim embeddings
+- Qdrant vector search (cosine similarity)
+
+**LLM:** Argo API (GPT-4o)
+
+**Infrastructure:**
+- Docker (Qdrant container)
+- Conda environment: `xpcs-llm` (Python dependencies)
+
+**Key Libraries:**
+- `chainlit` - Chat UI
+- `langchain-community` - RAG utilities
+- `qdrant-client` - Vector database client
+- `sentence-transformers` - SciBERT embeddings
+- `requests` - Argo API calls
+
 ## Overall Architecture of the Desired System
 ![Hypothesis-Driven Physical Science via LLM (XPCS Example)](assets/llm-xpcs-example-slide.png)
-
-## Tech Stack Plan
-* Frontend: Chainlit
-* Backend: FastAPI + Python
-* Database: PostgreSQL, Qdrant
-* RAG: LangChain, SciBERT
-* LLM: Argo or AskSage
-* Other: Docker or conda env
   
 <br>
 
