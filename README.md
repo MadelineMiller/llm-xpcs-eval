@@ -65,8 +65,8 @@
 
 **Infrastructure:**
 - Docker (Qdrant container)
-** Qdrant (the vector database) is running inside a Docker container
-** Document embeddings are stored in a docker volume (called qdrant_data)
+* Qdrant (the vector database) is running inside a Docker container
+* Document embeddings are stored in a docker volume (called qdrant_data)
 - Conda environment: `xpcs-llm` (Python dependencies)
 
 ## Overall Architecture of the Desired System
