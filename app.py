@@ -296,6 +296,9 @@ Do NOT attempt to answer from general knowledge."""
         "does not contain specific information",
         "doesn't contain specific information",
         "don't have specific information",
+        "do not contain any information",  
+        "passages do not contain",      
+        "provided passages do not",   
         "literature does not provide",
         "literature doesn't provide",
         "no specific information",
@@ -307,6 +310,7 @@ Do NOT attempt to answer from general knowledge."""
     # Conditionally create "Show Context" button
     if acknowledged_missing or not sources:
         actions = []
+        sources_with_scores = ""
     else:
         actions = [
             cl.Action(
