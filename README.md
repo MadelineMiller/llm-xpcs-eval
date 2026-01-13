@@ -19,6 +19,9 @@ TODO
 * Enable users to validate whether their experiment concept is technically feasible at 8-ID
 * Reduce back-and-forth with beamline staff by providing upfront guidance to users
 
+## Architecture of Ingestion & Query Processing
+![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
+
 ## Data Flow
 
 ### Ingestion (One-time Setup)
@@ -37,9 +40,6 @@ TODO
 6. Prompt sent to Argo API (GPT-4o)
 7. LLM generates response with source citations
 8. Answer displayed in Chainlit with paper names and page numbers
-
-## Architecture of Ingestion & Query Processing
-![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
 
 ## Repository Structure
 `llm-xpcs-eval/`  
