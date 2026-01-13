@@ -172,9 +172,26 @@ async def main(message: cl.Message):
     
     conversation_history = cl.user_session.get("conversation_history")
     system_prompt = cl.user_session.get("system_prompt")
+
+    def expand_query(query):
+        """Expand query with related terms for better retrieval"""
+        expansions = {
+            "what is xpcs": "XPCS X-ray Photon Correlation Spectroscopy speckle dynamics correlation",
+            "speckle contrast": "speckle contrast beta variance intensity fluctuations",
+            "correlation function": "correlation function g2 intensity autocorrelation dynamics",
+        }
+        
+        query_lower = query.lower()
+        for key, expansion in expansions.items():
+            if key in query_lower:
+                return f"{query} {expansion}"
+        
+        return query
+
+    expanded_query = expand_query(message.content)
     
     # Search for relevant context
-    query_vector = embeddings.embed_query(message.content)
+    query_vector = embeddings.embed_query(expanded_query)
     results = client.query_points(
         collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents'),
         query=query_vector,
@@ -337,7 +354,7 @@ async def on_show_context(action):
         return
     
     context_display = "# 📄 Retrieved Context Passages\n\n"
-    context_display += "="*80 + "\n\n"
+    context_display += "="*65+ "\n\n"
     
     for i, (part, result) in enumerate(zip(context_parts, results), 1):
         context_display += f"## Passage {i} (Score: {result.score:.4f})\n\n"
