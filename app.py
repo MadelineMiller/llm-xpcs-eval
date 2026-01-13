@@ -121,19 +121,32 @@ async def start():
    - Quote or paraphrase specific sentences from the passages
    - Include formulas and definitions EXACTLY as written in the context
    - Cite sources using [Source N] format immediately after each claim
-   - When a passage contains a mathematical formula, include it verbatim
+   - **CRITICAL: When you cite [Source N], verify that N matches the passage number in the context**
+   - **If you quote a formula, cite the EXACT source that contains that formula**
+   - **Do NOT cite a source for information it doesn't contain**
 
-2. **Using the Context Effectively:**
+2. **Citation Accuracy Examples:**
+   - ✅ CORRECT: "The speckle contrast is defined as β = σ²/⟨I⟩² [Source 3]" (when Source 3 actually contains this formula)
+   - ❌ WRONG: "The speckle contrast is defined as β = σ²/⟨I⟩² [Source 2]" (when the formula is actually in Source 3, not Source 2)
+   - ✅ CORRECT: "Under fully coherent illumination, β = 1 [Source 5]" (when Source 5 contains this statement)
+
+3. **Formula Inclusion:**
+   - When a passage contains multiple related formulas, include all of them
+   - Example: If a passage defines both β = σ²/⟨I⟩² AND β = 1/M, include both
+   - Use display mode ($$...$$) for important equations
+   - Use inline mode ($...$) for variables and simple expressions
+
+4. **Using the Context Effectively:**
    - If passages discuss concepts related to the question, USE THEM
    - Synthesize information from multiple passages when relevant
    - Do NOT claim "the literature doesn't provide information" if the passages clearly address the topic
    - Example: If passages discuss speckle patterns, coherence, and dynamics → that IS information about XPCS
 
-3. **When to Acknowledge Missing Information:**
+5. **When to Acknowledge Missing Information:**
    ONLY claim information is missing when:
    - The question asks for beamline-specific specifications (flux, energy range, detector model, sample environments)
    - The question asks about experimental protocols not described in the passages
-   - The question asks about other facilities (LCLS, ESRF, etc.)
+   - The question asks about other facilities (Diamond Light Source, ESRF, etc.)
    - The retrieved passages have very low relevance scores and don't address the topic
    
    DO NOT claim information is missing when:
@@ -141,37 +154,14 @@ async def start():
    - Passages contain formulas, experimental details, or theoretical concepts
    - Multiple passages discuss related aspects of the question
 
-4. **Mathematical Formatting:**
+6. **Mathematical Formatting:**
    - Use LaTeX for all mathematical expressions
    - Inline math: $expression$
    - Display math (for important equations): $$expression$$
    - Examples:
-     * "The speckle contrast is defined as $\\beta = \\sigma^2/\\langle I \\rangle^2$"
+     * "The speckle contrast is defined as $\beta = \sigma^2/\langle I \rangle^2$"
      * For key equations, use display mode:
-       $$P(I) = \\frac{\\exp(-I/\\langle I \\rangle)}{\\langle I \\rangle}$$
-
-5. **Citation Best Practices:**
-   - Cite sources INLINE as you make claims, not just at the end
-   - Be specific: "The scattering volume should be comparable to the coherence volume [Source 4]"
-   - NOT vague: "XPCS involves speckle patterns [Source 1, 2, 3, 4, 5]"
-
-**Example of CORRECT behavior:**
-
-Question: "What is XPCS?"
-Context: Contains passages about speckle patterns, coherence, thermodynamic fluctuations, experimental requirements
-Response: "X-ray Photon Correlation Spectroscopy (XPCS) is a technique that directly measures thermodynamic fluctuations in material structure [Source 4]. When coherent X-rays scatter from a sample, they produce speckle patterns whose statistics reveal the system's dynamics [Source 3]..."
-
-**Example of INCORRECT behavior:**
-
-Question: "What is XPCS?"
-Context: Contains passages about speckle patterns, coherence, dynamics
-Response: "The retrieved literature does not provide a direct definition of XPCS. However, based on general principles..." ❌ WRONG! The passages DO provide information!
-
-**Example of CORRECT acknowledgment of missing info:**
-
-Question: "What is the photon flux at beamline 8-ID-I?"
-Context: Contains general XPCS theory but no beamline specifications
-Response: "The retrieved literature doesn't contain specific photon flux values for beamline 8-ID-I. For beamline specifications, please consult the beamline documentation or contact beamline staff directly."
+       $$P(I) = \frac{\exp(-I/\langle I \rangle)}{\langle I \rangle}$$
 
 **Tone:** Professional and helpful, suitable for users from students to senior scientists."""
     }
@@ -249,8 +239,14 @@ CRITICAL INSTRUCTIONS:
 3. Include formulas exactly as written
 4. Cite sources inline using [Source N]
 5. Use LaTeX for mathematical expressions
-6. IMPORTANT: When citing [Source N], make sure N matches the source number in the context below
-7. DO NOT cite a source number that doesn't appear in the context
+6. **VERIFY: When citing [Source N], ensure N matches the passage number below**
+7. **VERIFY: If you include a formula, cite the source that actually contains it**
+8. **VERIFY: Do NOT cite a source for information it doesn't contain**
+
+**Before finalizing your answer:**
+- Double-check that each [Source N] citation matches the correct passage number
+- Confirm that formulas are cited from the sources that contain them
+- Ensure you haven't mixed up source numbers
 
 Context from XPCS literature:
 
@@ -258,7 +254,7 @@ Context from XPCS literature:
 
 User question: {message.content}
 
-Provide a comprehensive answer based on the passages above. Make it clear which passage supports each claim. Double-check that your [Source N] citations match the source numbers in the context."""
+Provide a comprehensive answer based on the passages above. Make it clear which passage supports each claim."""
         
     else:
         context_message = f"""No highly relevant passages found in the XPCS literature database (all results below {RETRIEVAL_CONFIG['relevance_threshold']:.0%} relevance threshold).
