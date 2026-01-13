@@ -19,17 +19,6 @@ TODO
 * Enable users to validate whether their experiment concept is technically feasible at 8-ID
 * Reduce back-and-forth with beamline staff by providing upfront guidance to users
 
-## Repository Structure
-`llm-xpcs-eval/`  
-|-- `context/`                    # Document acquisition  
-| ---------> `download_context_docs.py`   # Selenium scraper for Google Scholar PDFs  
-|-- `rag/`                        # RAG pipeline components  
-| ---------> `ingest_documents.py`        # PDF -> chunks -> embeddings -> Qdrant  
-| ---------> `test_retrieval.py`          # Test vector search  
-|-- `app.py`                    # Main Chainlit chat interface  
-|--  `config.py`                   # Hyperparameters (retrieval, LLM)  
-|-- `docker-compose.yml`          # Infrastructure (Qdrant vector DB)  
-
 ## Data Flow
 
 ### Ingestion (One-time Setup)
@@ -51,6 +40,17 @@ TODO
 
 ## Architecture of Ingestion & Query Processing
 ![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
+
+## Repository Structure
+`llm-xpcs-eval/`  
+|-- `context/`                    # Document acquisition  
+| ---------> `download_context_docs.py`   # Selenium scraper for Google Scholar PDFs  
+|-- `rag/`                        # RAG pipeline components  
+| ---------> `ingest_documents.py`        # PDF -> chunks -> embeddings -> Qdrant  
+| ---------> `test_retrieval.py`          # Test vector search  
+|-- `app.py`                    # Main Chainlit chat interface  
+|--  `config.py`                   # Hyperparameters (retrieval, LLM)  
+|-- `docker-compose.yml`          # Infrastructure (Qdrant vector DB)  
 
 ## Tech Stack
 
