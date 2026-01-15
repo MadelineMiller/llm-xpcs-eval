@@ -1,7 +1,7 @@
 # Retrieval Configuration
 RETRIEVAL_CONFIG = {
     # Number of passages to retrieve from vector database
-    'num_results': 15,
+    'num_results': 20,
     
     # Minimum similarity score (0-1) to include a passage
     # Higher = more strict, only very relevant passages
@@ -12,6 +12,7 @@ RETRIEVAL_CONFIG = {
     # To change this, you need to re-run ingest_documents.py
     'chunk_size': 1000,
     'chunk_overlap': 200,
+    
 }
 
 # LLM Configuration

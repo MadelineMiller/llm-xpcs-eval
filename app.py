@@ -146,6 +146,27 @@ When you receive context passages from XPCS literature, you MUST use them to con
 - Provide guidance on sample requirements and experimental design
 - Maintain conversation context for follow-up questions
 
+OUT OF SCOPE - You MUST decline questions about:
+
+
+
+Protein crystallography (redirect to SBC beamlines)
+
+Other X-ray techniques (SAXS, WAXS, diffraction, etc.)
+
+Other beamlines (unless comparing to 8-ID)
+
+Weather, travel, logistics, administrative matters
+
+Designing physical systems that are not XPCS experiment related
+
+
+When asked an out-of-scope question, respond:
+"I apologize, but I specialize exclusively in XPCS at beamline 8-ID. For [topic], please contact [appropriate resource]. Is there anything about XPCS experiment feasibility I can help you with?"
+
+
+Never answer out-of-scope questions, even if you have relevant knowledge.
+
 **Tone:** Professional, helpful, and confident when you have relevant context."""
     }
     
@@ -153,15 +174,12 @@ When you receive context passages from XPCS literature, you MUST use them to con
     
     await cl.Message(
         content="👋 **Welcome to the XPCS Hypothesis Evaluator!**\n\n"
-                "I can help you with questions about X-ray Photon Correlation Spectroscopy.\n\n"
-                "**Ask me about:**\n"
-                "- XPCS theory and principles\n"
-                "- Experimental requirements\n"
-                "- Sample preparation\n"
-                "- Data analysis techniques\n\n"
-                "📚 **Database:** 113 XPCS papers with 5,743 searchable passages\n\n"
-                "💡 **Tip:** I'll show confidence levels and sources for transparency!\n\n"
-                "I will remember our conversation, so feel free to ask follow-up questions!"
+            "I can help you map out and evaluate your XPCS experiment plan at beamline 8-ID.\n\n"
+            "**My main functionalities are to help you:**\n"
+            "- Formulate and refine your scientific hypothesis for XPCS experiments\n\n"
+            "- Check feasibility of testing your hypothesis against 8-ID's resources and capabilities\n\n"
+            "📚 My answers are based on XPCS research papers and textbooks.\n\n"
+            "💡 I'll cite sources so you can verify and explore further."
     ).send()
 
 
@@ -195,7 +213,17 @@ async def main(message: cl.Message):
     results = client.query_points(
         collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents'),
         query=query_vector,
-        limit=RETRIEVAL_CONFIG['num_results']
+        limit=RETRIEVAL_CONFIG['num_results'],
+        query_filter={
+            "must_not": [
+                {
+                    "key": "source",
+                    "match": {
+                        "text": "x-ray-data-booklet"
+                    }
+                }
+            ]
+        }
     )
     
     # DEBUG: Print all scores
@@ -291,7 +319,7 @@ Do NOT attempt to answer from general knowledge."""
     # Format sources
     sources_with_scores = format_sources_with_scores(results.points[:len(sources)])
     
-    # Check if LLM acknowledged missing information
+    # Check if LLM acknowledged missing information or out of scope question
     missing_info_phrases = [
         "does not contain specific information",
         "doesn't contain specific information",
@@ -302,7 +330,8 @@ Do NOT attempt to answer from general knowledge."""
         "literature does not provide",
         "literature doesn't provide",
         "no specific information",
-        "not found in the literature"
+        "not found in the literature",
+        "I apologize"
     ]
     
     acknowledged_missing = any(phrase.lower() in answer.lower() for phrase in missing_info_phrases)
@@ -361,7 +390,7 @@ async def on_show_context(action):
     context_display += "="*65+ "\n\n"
     
     for i, (part, result) in enumerate(zip(context_parts, results), 1):
-        context_display += f"## Passage {i} (Score: {result.score:.4f})\n\n"
+        context_display += f"## Source {i}\n\n"
         context_display += f"{part}\n\n"
         context_display += "-"*80 + "\n\n"
     
