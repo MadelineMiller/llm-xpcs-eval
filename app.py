@@ -81,6 +81,31 @@ def call_argo_llm(messages):
     except Exception as e:
         return f"Error calling Argo API: {str(e)}"
 
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+    """
+    Password authentication using credentials from .env
+    """
+    # Get credentials from environment variables
+    tester_username = os.getenv("AUTH_TESTER_USERNAME", "tester")
+    tester_password = os.getenv("AUTH_TESTER_PASSWORD", "TestPass123!")
+    admin_username = os.getenv("AUTH_ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("AUTH_ADMIN_PASSWORD", "AdminPass456!")
+
+    # Check credentials
+    if username == tester_username and password == tester_password:
+        return cl.User(
+            identifier="tester",
+            metadata={"role": "tester", "provider": "credentials"}
+        )
+    elif username == admin_username and password == admin_password:
+        return cl.User(
+            identifier="admin",
+            metadata={"role": "admin", "provider": "credentials"}
+        )
+    else:
+        return None
+
 
 # ============================================================================
 # CHAINLIT HANDLERS
