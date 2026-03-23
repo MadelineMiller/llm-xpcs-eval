@@ -10,17 +10,64 @@ from config import RETRIEVAL_CONFIG, LLM_CONFIG
 # DEMO HELPER FUNCTIONS
 # ============================================================================
 
+import re
+
+
+def clean_title(title):
+    """Strip MathML/XML tags and HTML from CrossRef titles."""
+    if not title:
+        return title
+    # remove XML/HTML tags
+    title = re.sub(r'<[^>]+>', '', title)
+    # collapse extra whitespace
+    title = re.sub(r'\s+', ' ', title).strip()
+    return title
+
 def format_sources_with_scores(results):
-    """Format sources with visual score bars"""
-    sources_text = "**Sources consulted:**\n"
-    
-    for i, result in enumerate(results, 1):
-        sources_text += (
-            f"[{i}] {os.path.basename(result.payload['source'])} "
-            f"(Page {result.payload['page']}) - "
-            f"Score: {result.score:.4f}\n"
-        )
-    
+    """Format sources with full citation metadata"""
+    sources_text = "**Sources consulted:**\n\n"
+
+
+    seen = set()
+
+    for result in results:
+        p = result.payload
+
+        title   = clean_title(p.get("title")) or os.path.basename(p["source"])
+        authors = p.get("authors") or []
+        journal = p.get("journal") or ""
+        year    = p.get("year")    or ""
+        url     = p.get("url")     or ""
+        doi     = p.get("doi")     or ""
+        page    = p.get("page", "")
+
+        if title in seen:
+            continue
+        seen.add(title)
+
+        # author string
+        if len(authors) > 2:
+            author_str = f"{authors[0]} et al."
+        elif authors:
+            author_str = ", ".join(authors)
+        else:
+            author_str = ""
+
+        # meta line: authors · journal · year · page
+        meta_parts = [x for x in [author_str, journal, str(year) if year else "", f"p. {page}"] if x]
+        meta_str   = " · ".join(meta_parts)
+
+        # doi line
+        doi_str = f"DOI: [{doi}]({url})" if doi and url else ""
+
+        # build entry
+        sources_text += "---\n"
+        sources_text += f"**{title}**  \n"
+        sources_text += f"{meta_str}  \n"
+        if doi_str:
+            sources_text += f"{doi_str}\n"
+        sources_text += "\n"
+
     return sources_text
 
 
@@ -271,17 +318,25 @@ async def main(message: cl.Message):
     
     context_parts = []
     sources = []
+    seen_titles = set()  # deduplicate chunks from the same paper
+
     
     for idx, result in enumerate(results.points, 1):
         if result.score < adaptive_threshold:
             continue
-            
-        source = os.path.basename(result.payload['source'])
-        page = result.payload['page']
-        text = result.payload['text']
-        
-        context_parts.append(f"[Source {idx}: {source}, Page {page}]\n{text}")
-        sources.append(f"[{idx}] {source} (Page {page})")
+
+        p    = result.payload
+        source = os.path.basename(p['source'])
+        page   = p['page']
+        text   = p['text']
+
+        # use rich title for LLM context if available
+        title  = p.get('title') or source
+
+        context_parts.append(f"[Source {idx}: {title}, Page {page}]\n{text}")
+        sources.append(f"[{idx}] {title} (Page {page})")
+        seen_titles.add(title)
+
     
     cl.user_session.set("last_context", context_parts)
     cl.user_session.set("last_results", results.points[:len(sources)])
