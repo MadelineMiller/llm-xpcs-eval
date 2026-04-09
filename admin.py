@@ -1,25 +1,30 @@
 import threading
 import uvicorn
 import os
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+import re
+import html as html_lib
+import uuid
+import tempfile
+from fastapi import FastAPI, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
 from weights_manager import load_weights, save_weights, get_all_docs
 from qdrant_client import QdrantClient
+from qdrant_client.models import PointStruct
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-import html as html_lib
+from langchain_community.document_loaders import PyPDFLoader
 
-import re
 
 def clean_title(title):
     """Strip MathML/XML tags and extract readable text from CrossRef titles."""
     if not title:
         return title
-    # Remove full MathML blocks but keep inner text content
     title = re.sub(r'<[^>]+>', '', title)
-    # Collapse extra whitespace
     title = re.sub(r'\s+', ' ', title).strip()
     return title
+
 
 load_dotenv()
 
@@ -30,19 +35,26 @@ client = QdrantClient(
     port=int(os.getenv('QDRANT_PORT', 6333))
 )
 
+embeddings = HuggingFaceEmbeddings(
+    model_name="allenai/scibert_scivocab_uncased",
+    model_kwargs={'device': 'cpu'}
+)
+
+COLLECTION_NAME = os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents')
+
 
 def get_bar(weight: int) -> str:
     filled = round(weight / 10)
     empty = 10 - filled
     return (
-        '<i class="fa-solid fa-square" style="color:#4caf50;"></i>' * filled
+        '<i class="fa-solid fa-square" style="color:#2196f3;"></i>' * filled
         + '<i class="fa-regular fa-square" style="color:#555;"></i>' * empty
     )
 
 
 @admin_app.get("/", response_class=HTMLResponse)
 async def admin_page():
-    docs = get_all_docs(client, os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents'))
+    docs = get_all_docs(client, COLLECTION_NAME)
     weights = load_weights()
 
     rows = ""
@@ -64,13 +76,10 @@ async def admin_page():
             author_str = "Unknown"
 
         safe_source = source.replace("'", "\\'")
-
-        # Escape HTML entities in display strings
-        safe_title      = html_lib.escape(title)
+        safe_title = html_lib.escape(title or source)
         safe_author_str = html_lib.escape(author_str)
-        safe_journal    = html_lib.escape(journal)
+        safe_journal = html_lib.escape(journal)
 
-        # Build metadata lines
         meta_lines = f'<span class="meta-label">Author:</span> {safe_author_str}'
         if journal:
             meta_lines += f'<br><span class="meta-label">Journal:</span> {safe_journal}'
@@ -81,13 +90,12 @@ async def admin_page():
         elif doi:
             meta_lines += f'<br><span class="meta-label">DOI:</span> {html_lib.escape(doi)}'
 
-        # Also escape for data attributes
-        data_title  = html_lib.escape(title.lower())
+        data_title = html_lib.escape((title or "").lower())
         data_author = html_lib.escape(author_str.lower())
         data_source = html_lib.escape(source.lower())
 
         rows += f"""
-        <tr class="doc-row" data-title="{data_title}" data-author="{data_author}" data-source="{data_source}">
+        <tr class="doc-row" id="row-{source}" data-title="{data_title}" data-author="{data_author}" data-source="{data_source}">
             <td>
                 <strong class="doc-title">{safe_title}</strong>
                 <div class="doc-meta">{meta_lines}</div>
@@ -103,11 +111,13 @@ async def admin_page():
                     </button>
                     <span id="val-{source}" style="font-weight:bold; min-width:55px;">{weight}/100</span>
                     <input type="hidden" id="weight-{source}" value="{weight}">
+                    <button onclick="deleteDoc('{safe_source}')" title="Delete document" class="delete-btn">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
                 </div>
             </td>
         </tr>
         """
-
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -124,29 +134,32 @@ async def admin_page():
             color: #e0e0e0;
         }}
         h1 {{ color: #ffffff; }}
-        .search-box {{
-            width: 100%;
-            padding: 10px 14px 10px 36px;
-            font-size: 15px;
+        .search-wrapper {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #2a2a2a;
             border: 1px solid #555;
             border-radius: 6px;
-            background: #2a2a2a;
-            color: #e0e0e0;
+            padding: 10px 14px;
             margin-bottom: 16px;
-            box-sizing: border-box;
+        }}
+        .search-wrapper:focus-within {{
+            border-color: #2196f3;
+        }}
+        .search-wrapper i {{
+            color: #777;
+            font-size: 14px;
+        }}
+        .search-box {{
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: #e0e0e0;
+            font-size: 15px;
         }}
         .search-box::placeholder {{ color: #777; }}
-        .search-box:focus {{ outline: none; border-color: #4caf50; }}
-        .search-wrapper {{
-            position: relative;
-        }}
-        .search-icon {{
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #777;
-        }}
         table {{
             width: 100%;
             border-collapse: collapse;
@@ -184,12 +197,12 @@ async def admin_page():
             font-weight: bold;
         }}
         .doi-link {{
-            color: #4caf50;
+            color: #2196f3;
             text-decoration: none;
         }}
         .doi-link:hover {{
             text-decoration: underline;
-            color: #66bb6a;
+            color: #64b5f6;
         }}
         button {{
             padding: 6px 10px;
@@ -201,12 +214,13 @@ async def admin_page():
             font-size: 14px;
             transition: background 0.15s;
         }}
-        button:hover {{ background: #4caf50; color: white; border-color: #4caf50; }}
+        button:hover {{ background: #2196f3; color: white; border-color: #2196f3; }}
+        .delete-btn:hover {{ background: #e53935; border-color: #e53935; }}
         .toast {{
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: #4caf50;
+            background: #2196f3;
             color: white;
             padding: 10px 20px;
             border-radius: 6px;
@@ -214,6 +228,7 @@ async def admin_page():
             font-size: 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }}
+        .toast.error {{ background: #e53935; }}
         .toast i {{ margin-right: 6px; }}
         .back {{ color: #aaa; text-decoration: none; font-size: 14px; }}
         .back:hover {{ color: #fff; }}
@@ -225,6 +240,82 @@ async def admin_page():
             color: #666;
             display: none;
         }}
+        .upload-section {{
+            background: #2a2a2a;
+            border: 2px dashed #555;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            transition: border-color 0.2s;
+        }}
+        .upload-section:hover {{ border-color: #2196f3; }}
+        .upload-section.dragover {{ border-color: #2196f3; background: #333; }}
+        .upload-btn {{
+            padding: 10px 24px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 10px;
+        }}
+        .upload-btn:hover {{ background: #1e88e5; }}
+        .upload-btn:disabled {{ background: #555; cursor: not-allowed; }}
+        .file-input-label {{
+            display: inline-block;
+            padding: 8px 18px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #e0e0e0;
+            font-size: 14px;
+        }}
+        .file-input-label:hover {{ background: #444; }}
+        #fileInput {{ display: none; }}
+        .selected-file {{ color: #2196f3; margin-top: 8px; font-size: 13px; }}
+        .progress-bar {{
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin-top: 10px;
+            display: none;
+        }}
+        .progress-fill {{
+            height: 100%;
+            background: #2196f3;
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s;
+        }}
+        .confirm-overlay {{
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }}
+        .confirm-box {{
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 400px;
+            text-align: center;
+        }}
+        .confirm-box h3 {{ color: #e53935; margin-bottom: 12px; }}
+        .confirm-box p {{ color: #ccc; margin-bottom: 20px; font-size: 14px; }}
+        .confirm-btns {{ display: flex; gap: 10px; justify-content: center; }}
+        .confirm-btns button {{ padding: 8px 20px; font-size: 14px; }}
+        .btn-cancel {{ background: #333; }}
+        .btn-delete {{ background: #e53935; border-color: #e53935; color: white; }}
+        .btn-delete:hover {{ background: #c62828; }}
+        .doc-count {{ color: #888; font-size: 13px; margin-bottom: 16px; }}
     </style>
 </head>
 <body>
@@ -235,16 +326,33 @@ async def admin_page():
         <strong>Higher weight = prioritized more when answering questions.</strong> Default is 50/100.
     </p>
 
+    <div class="upload-section" id="uploadSection">
+        <i class="fa-solid fa-cloud-arrow-up" style="font-size:28px; color:#2196f3; margin-bottom:8px;"></i>
+        <p style="margin:4px 0; color:#ccc;">Upload a PDF to add to the knowledge base</p>
+        <label class="file-input-label" for="fileInput">
+            <i class="fa-solid fa-file-pdf"></i> Choose PDF
+        </label>
+        <input type="file" id="fileInput" accept=".pdf" onchange="fileSelected()">
+        <div class="selected-file" id="selectedFile"></div>
+        <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+        <br>
+        <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
+            <i class="fa-solid fa-upload"></i> Upload &amp; Index
+        </button>
+    </div>
+
     <div class="search-wrapper">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <i class="fa-solid fa-magnifying-glass"></i>
         <input type="text" class="search-box" id="searchBox" placeholder="Search by title, author, or filename..." oninput="filterDocs()">
     </div>
+
+    <p class="doc-count" id="docCount">{len(docs)} documents in database</p>
 
     <table>
         <thead>
             <tr>
                 <th><i class="fa-solid fa-file-lines"></i> Document</th>
-                <th><i class="fa-solid fa-sliders"></i> Weight</th>
+                <th><i class="fa-solid fa-sliders"></i> Weight & Actions</th>
             </tr>
         </thead>
         <tbody id="docTableBody">
@@ -254,9 +362,22 @@ async def admin_page():
 
     <p class="no-results" id="noResults"><i class="fa-solid fa-circle-exclamation"></i> No documents match your search.</p>
 
-    <div class="toast" id="toast"><i class="fa-solid fa-check"></i> Saved!</div>
+    <div class="toast" id="toast"><i class="fa-solid fa-check"></i> <span id="toastMsg">Saved!</span></div>
+
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-box">
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> Delete Document</h3>
+            <p>Are you sure you want to permanently delete<br><strong id="confirmFilename"></strong><br>and all its chunks from the knowledge base?</p>
+            <div class="confirm-btns">
+                <button class="btn-cancel" onclick="cancelDelete()">Cancel</button>
+                <button class="btn-delete" onclick="confirmDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
+            </div>
+        </div>
+    </div>
 
     <script>
+        let pendingDeleteSource = null;
+
         async function adjust(source, delta) {{
             const hidden = document.getElementById('weight-' + source);
             let current  = parseInt(hidden.value);
@@ -272,7 +393,7 @@ async def admin_page():
                 body: JSON.stringify({{filename: source, weight: newVal}})
             }});
 
-            showToast();
+            showToast('Saved!', false);
         }}
 
         function getBar(val) {{
@@ -280,7 +401,7 @@ async def admin_page():
             const empty  = 10 - filled;
             let bar = '';
             for (let i = 0; i < filled; i++) {{
-                bar += '<i class="fa-solid fa-square" style="color:#4caf50;"></i>';
+                bar += '<i class="fa-solid fa-square" style="color:#2196f3;"></i>';
             }}
             for (let i = 0; i < empty; i++) {{
                 bar += '<i class="fa-regular fa-square" style="color:#555;"></i>';
@@ -288,10 +409,12 @@ async def admin_page():
             return bar;
         }}
 
-        function showToast() {{
+        function showToast(msg, isError) {{
             const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.className = isError ? 'toast error' : 'toast';
             toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 1500);
+            setTimeout(() => toast.style.display = 'none', 2000);
         }}
 
         function filterDocs() {{
@@ -314,6 +437,115 @@ async def admin_page():
 
             document.getElementById('noResults').style.display = visible === 0 ? 'block' : 'none';
         }}
+
+        function deleteDoc(source) {{
+            pendingDeleteSource = source;
+            document.getElementById('confirmFilename').textContent = source;
+            document.getElementById('confirmOverlay').style.display = 'flex';
+        }}
+
+        function cancelDelete() {{
+            pendingDeleteSource = null;
+            document.getElementById('confirmOverlay').style.display = 'none';
+        }}
+
+        async function confirmDelete() {{
+            const source = pendingDeleteSource;
+            document.getElementById('confirmOverlay').style.display = 'none';
+
+            const resp = await fetch('/delete-doc', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/json'}},
+                body: JSON.stringify({{filename: source}})
+            }});
+
+            const data = await resp.json();
+            if (data.ok) {{
+                const row = document.getElementById('row-' + source);
+                if (row) row.remove();
+                const count = document.querySelectorAll('.doc-row').length;
+                document.getElementById('docCount').textContent = count + ' documents in database';
+                showToast('Deleted ' + source + ' (' + data.chunks_deleted + ' chunks)', false);
+            }} else {{
+                showToast('Error: ' + (data.error || 'unknown'), true);
+            }}
+
+            pendingDeleteSource = null;
+        }}
+
+        function fileSelected() {{
+            const input = document.getElementById('fileInput');
+            const label = document.getElementById('selectedFile');
+            const btn   = document.getElementById('uploadBtn');
+            if (input.files.length > 0) {{
+                label.textContent = input.files[0].name;
+                btn.disabled = false;
+            }} else {{
+                label.textContent = '';
+                btn.disabled = true;
+            }}
+        }}
+
+        async function uploadFile() {{
+            const input = document.getElementById('fileInput');
+            if (!input.files.length) return;
+
+            const btn  = document.getElementById('uploadBtn');
+            const bar  = document.getElementById('progressBar');
+            const fill = document.getElementById('progressFill');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Indexing...';
+            bar.style.display = 'block';
+            fill.style.width = '30%';
+
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            try {{
+                fill.style.width = '60%';
+                const resp = await fetch('/upload-doc', {{
+                    method: 'POST',
+                    body: formData
+                }});
+
+                fill.style.width = '90%';
+                const data = await resp.json();
+
+                if (data.ok) {{
+                    fill.style.width = '100%';
+                    showToast('Added ' + data.filename + ' (' + data.chunks + ' chunks)', false);
+                    setTimeout(() => location.reload(), 1000);
+                }} else {{
+                    showToast('Error: ' + (data.error || 'unknown'), true);
+                }}
+            }} catch (e) {{
+                showToast('Upload failed: ' + e.message, true);
+            }}
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload &amp; Index';
+            setTimeout(() => {{
+                bar.style.display = 'none';
+                fill.style.width = '0%';
+            }}, 1500);
+        }}
+
+        const uploadSection = document.getElementById('uploadSection');
+        uploadSection.addEventListener('dragover', (e) => {{
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        }});
+        uploadSection.addEventListener('dragleave', () => {{
+            uploadSection.classList.remove('dragover');
+        }});
+        uploadSection.addEventListener('drop', (e) => {{
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const input = document.getElementById('fileInput');
+            input.files = e.dataTransfer.files;
+            fileSelected();
+        }});
     </script>
 </body>
 </html>"""
@@ -327,6 +559,123 @@ async def set_weight(request: Request):
     weights[data["filename"]] = data["weight"]
     save_weights(weights)
     return {"ok": True}
+
+
+@admin_app.post("/delete-doc")
+async def delete_doc(request: Request):
+    """Delete all chunks for a document from Qdrant and remove its weight."""
+    try:
+        data = await request.json()
+        filename = data["filename"]
+
+        # Scroll to find all point IDs matching this source
+        point_ids = []
+        offset = None
+        while True:
+            results, offset = client.scroll(
+                collection_name=COLLECTION_NAME,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for point in results:
+                source = os.path.basename(point.payload.get("source", ""))
+                if source == filename:
+                    point_ids.append(point.id)
+
+            if offset is None:
+                break
+
+        if not point_ids:
+            return JSONResponse(
+                status_code=404,
+                content={"ok": False, "error": f"No chunks found for {filename}"}
+            )
+
+        # Delete all matching points by ID
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=point_ids
+        )
+
+        # Remove from weights
+        weights = load_weights()
+        if filename in weights:
+            del weights[filename]
+            save_weights(weights)
+
+        print(f"[DELETE] Removed {len(point_ids)} chunks for: {filename}")
+        return {"ok": True, "chunks_deleted": len(point_ids)}
+
+    except Exception as e:
+        print(f"[DELETE ERROR] {e}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@admin_app.post("/upload-doc")
+async def upload_doc(file: UploadFile = File(...)):
+    """Upload a PDF, split into chunks, embed, and add to Qdrant."""
+    try:
+        if not file.filename.endswith('.pdf'):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Only PDF files are supported"})
+
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        # Load and split
+        loader = PyPDFLoader(tmp_path)
+        pages = loader.load()
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
+        chunks = splitter.split_documents(pages)
+
+        # Embed and upload to Qdrant
+        points = []
+        for i, chunk in enumerate(chunks):
+            vector = embeddings.embed_query(chunk.page_content)
+            point_id = str(uuid.uuid4())
+            points.append(
+                PointStruct(
+                    id=point_id,
+                    vector=vector,
+                    payload={
+                        "source": file.filename,
+                        "title": file.filename.replace(".pdf", "").replace("_", " "),
+                        "text": chunk.page_content,
+                        "page": chunk.metadata.get("page", 0),
+                        "authors": [],
+                        "journal": "",
+                        "year": "",
+                        "doi": "",
+                        "url": "",
+                    }
+                )
+            )
+
+        # Batch upload
+        BATCH_SIZE = 50
+        for i in range(0, len(points), BATCH_SIZE):
+            client.upsert(
+                collection_name=COLLECTION_NAME,
+                points=points[i:i + BATCH_SIZE]
+            )
+
+        # Clean up temp file
+        os.unlink(tmp_path)
+
+        print(f"[UPLOAD] Added {file.filename}: {len(chunks)} chunks")
+        return {"ok": True, "filename": file.filename, "chunks": len(chunks)}
+
+    except Exception as e:
+        print(f"[UPLOAD ERROR] {e}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
 def start_admin_server():
