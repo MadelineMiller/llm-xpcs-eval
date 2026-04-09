@@ -1,8 +1,5 @@
 # XPCS Hypothesis Evaluator LLM (In Progress)
 
-## Visit the Below Site to Chat with the LLM
-TODO
-
 ## Target Audience: 
 * Beamline visiting users
   
