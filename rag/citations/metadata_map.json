@@ -1,0 +1,1579 @@
+{
+  "001_Livet_2007.pdf": {
+    "title": "Diffraction with a coherent X-ray beam: dynamics and imaging. Erratum",
+    "journal": "Acta Crystallographica Section A Foundations of Crystallography",
+    "year": 2007,
+    "authors": [
+      "Fr\u00e9d\u00e9ric Livet"
+    ],
+    "doi": "10.1107/S0108767307016248",
+    "url": "https://doi.org/10.1107/S0108767307016248"
+  },
+  "002_Gr_2008.pdf": {
+    "title": "X-ray photon correlation spectroscopy (XPCS)",
+    "journal": "Soft Matter Characterization",
+    "year": 2008,
+    "authors": [
+      "Gerhard Gr\u00fcbel",
+      "Anders Madsen",
+      "Abdellatif Robert"
+    ],
+    "doi": "10.1007/978-1-4020-4465-6_18",
+    "url": "https://doi.org/10.1007/978-1-4020-4465-6_18"
+  },
+  "003_Sutton_2008.pdf": {
+    "title": "A review of X-ray intensity fluctuation spectroscopy",
+    "journal": "Comptes Rendus. Physique",
+    "year": 2007,
+    "authors": [
+      "Mark Sutton"
+    ],
+    "doi": "10.1016/j.crhy.2007.04.008",
+    "url": "https://doi.org/10.1016/j.crhy.2007.04.008"
+  },
+  "004_Livet_2012.pdf": {
+    "title": "X-ray coherent scattering in metal physics",
+    "journal": "Comptes Rendus. Physique",
+    "year": 2012,
+    "authors": [
+      "Fr\u00e9d\u00e9ric Livet",
+      "Mark Sutton"
+    ],
+    "doi": "10.1016/j.crhy.2011.11.009",
+    "url": "https://doi.org/10.1016/j.crhy.2011.11.009"
+  },
+  "005_Sinha_2014.pdf": {
+    "title": "X\u2010ray Photon Correlation Spectroscopy Studies of Surfaces and Thin Films",
+    "journal": "Advanced Materials",
+    "year": 2014,
+    "authors": [
+      "Sunil K. Sinha",
+      "Zhang Jiang",
+      "Laurence B. Lurio"
+    ],
+    "doi": "10.1002/adma.201401094",
+    "url": "https://doi.org/10.1002/adma.201401094"
+  },
+  "006_Madsen_2016.pdf": {
+    "title": "Structural Dynamics of Materials Probed by X-Ray Photon Correlation Spectroscopy",
+    "journal": "Synchrotron Light Sources and Free-Electron Lasers",
+    "year": 2020,
+    "authors": [
+      "Anders Madsen",
+      "Andrei Fluerasu",
+      "Beatrice Ruta"
+    ],
+    "doi": "10.1007/978-3-030-23201-6_29",
+    "url": "https://doi.org/10.1007/978-3-030-23201-6_29"
+  },
+  "007_Sutton_1991.pdf": {
+    "title": "Observation of speckle by diffraction with coherent X-rays",
+    "journal": "Nature",
+    "year": 1991,
+    "authors": [
+      "Mark Sutton",
+      "S. G. J. Mochrie",
+      "T. Greytak",
+      "S. E. Nagler",
+      "L. E. Berman"
+    ],
+    "doi": "10.1038/352608a0",
+    "url": "https://doi.org/10.1038/352608a0"
+  },
+  "008_Miao_2015.pdf": {
+    "title": "Quantum optics: Science and technology in a new light",
+    "journal": "Science",
+    "year": 2015,
+    "authors": [
+      "I. A. Walmsley"
+    ],
+    "doi": "10.1126/science.aab0097",
+    "url": "https://doi.org/10.1126/science.aab0097"
+  },
+  "009_Born_1980.pdf": {
+    "title": "Principles of Optics: Electromagnetic Theory of Propagation, Interference and Diffraction of Light",
+    "journal": "Pergamon Press",
+    "year": 1980,
+    "authors": [
+      "Max Born",
+      "Emil Wolf"
+    ],
+    "doi": "",
+    "url": ""
+  },
+  "010_Goodman_1985.pdf": {
+    "title": "Statistical Optics",
+    "journal": "Wiley",
+    "year": 1985,
+    "authors": [
+      "Joseph W. Goodman"
+    ],
+    "doi": "",
+    "url": ""
+  },
+  "011_Vartanyants_2010.pdf": {
+    "title": "Coherence properties of hard x-ray synchrotron sources and x-ray free-electron lasers",
+    "journal": "New Journal of Physics",
+    "year": 2010,
+    "authors": [
+      "I A Vartanyants",
+      "A Singer"
+    ],
+    "doi": "10.1088/1367-2630/12/3/035004",
+    "url": "https://doi.org/10.1088/1367-2630/12/3/035004"
+  },
+  "012_Sandy_1999.pdf": {
+    "title": "Design and characterization of an undulator beamline optimized for small-angle coherent X-ray scattering at the Advanced Photon Source",
+    "journal": "Journal of Synchrotron Radiation",
+    "year": 1999,
+    "authors": [
+      "A. R. Sandy",
+      "L. B. Lurio",
+      "S. G. J. Mochrie",
+      "A. Malik",
+      "G. B. Stephenson"
+    ],
+    "doi": "10.1107/S0909049599008140",
+    "url": "https://doi.org/10.1107/S0909049599008140"
+  },
+  "013_Pfeiffer_2004.pdf": {
+    "title": "Coherent grazing exit x-ray scattering geometry for probing the structure of thin films",
+    "journal": "Applied Physics Letters",
+    "year": 2004,
+    "authors": [
+      "Franz Pfeiffer",
+      "Wei Zhang",
+      "Ian K. Robinson"
+    ],
+    "doi": "10.1063/1.1669061",
+    "url": "https://doi.org/10.1063/1.1669061"
+  },
+  "014_Markowitz_1963.pdf": {
+    "title": "Effect of Impurities upon Critical Temperature of Anisotropic Superconductors",
+    "journal": "Physical Review",
+    "year": 1963,
+    "authors": [
+      "David Markowitz",
+      "Leo P. Kadanoff"
+    ],
+    "doi": "10.1103/PhysRev.131.563",
+    "url": "https://doi.org/10.1103/PhysRev.131.563"
+  },
+  "015_Dierker_1995.pdf": {
+    "title": "X-Ray Photon Correlation Spectroscopy Study of Brownian Motion of Gold Colloids in Glycerol",
+    "journal": "Physical Review Letters",
+    "year": 1995,
+    "authors": [
+      "S. B. Dierker",
+      "R. Pindak",
+      "R. M. Fleming",
+      "I. K. Robinson",
+      "L. Berman"
+    ],
+    "doi": "10.1103/PhysRevLett.75.449",
+    "url": "https://doi.org/10.1103/PhysRevLett.75.449"
+  },
+  "016_Zhang_2012.pdf": {
+    "title": "Ultra\u2010small\u2010angle X\u2010ray scattering\u2013X\u2010ray photon correlation spectroscopy studies of incipient structural changes in amorphous calcium phosphate\u2010based dental composites",
+    "journal": "Journal of Biomedical Materials Research Part A",
+    "year": 2012,
+    "authors": [
+      "Fan Zhang",
+      "Andrew J. Allen",
+      "Lyle E. Levine",
+      "Laura Espinal",
+      "Joseph M. Antonucci",
+      "Drago Skrtic",
+      "Justin N. R. O'Donnell",
+      "Jan Ilavsky"
+    ],
+    "doi": "10.1002/jbm.a.34018",
+    "url": "https://doi.org/10.1002/jbm.a.34018"
+  },
+  "017_Zhang_2017.pdf": {
+    "title": "Thermal Fluctuations of Ferroelectric Nanodomains in a Ferroelectric-Dielectric \n<mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mml:mrow><mml:msub><mml:mrow><mml:mi>PbTiO</mml:mi></mml:mrow><mml:mn>3</mml:mn></mml:msub><mml:mo>/</mml:mo><mml:msub><mml:mrow><mml:mi>SrTiO</mml:mi></mml:mrow><mml:mn>3</mml:mn></mml:msub></mml:mrow></mml:math>\n Superlattice",
+    "journal": "Physical Review Letters",
+    "year": 2017,
+    "authors": [
+      "Qingteng Zhang",
+      "Eric\u2009M. Dufresne",
+      "Pice Chen",
+      "Joonkyu Park",
+      "Margaret\u2009P. Cosgriff",
+      "Mohammed Yusuf",
+      "Yongqi Dong",
+      "Dillon\u2009D. Fong",
+      "Hua Zhou",
+      "Zhonghou Cai",
+      "Ross\u2009J. Harder",
+      "Sara\u2009J. Callori",
+      "Matthew Dawber",
+      "Paul\u2009G. Evans",
+      "Alec\u2009R. Sandy"
+    ],
+    "doi": "10.1103/PhysRevLett.118.097601",
+    "url": "https://doi.org/10.1103/PhysRevLett.118.097601"
+  },
+  "018_Barbour_2016.pdf": {
+    "title": "Partial glass isosymmetry transition in multiferroic hexagonal<mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\"><mml:mrow><mml:mi>ErMn</mml:mi><mml:msub><mml:mi mathvariant=\"normal\">O</mml:mi><mml:mn>3</mml:mn></mml:msub></mml:mrow></mml:math>",
+    "journal": "Physical Review B",
+    "year": 2016,
+    "authors": [
+      "A. Barbour",
+      "A. Alatas",
+      "Y. Liu",
+      "C. Zhu",
+      "B. M. Leu",
+      "X. Zhang",
+      "A. Sandy",
+      "M. S. Pierce",
+      "X. Wang",
+      "S.-W. Cheong",
+      "H. You"
+    ],
+    "doi": "10.1103/PhysRevB.93.054113",
+    "url": "https://doi.org/10.1103/PhysRevB.93.054113"
+  },
+  "019_Singer_2016.pdf": {
+    "title": "Phase coexistence and pinning of charge density waves by interfaces in chromium",
+    "journal": "Physical Review B",
+    "year": 2016,
+    "authors": [
+      "A. Singer",
+      "S. K. K. Patel",
+      "V. Uhl\u00ed\u0159",
+      "R. Kukreja",
+      "A. Ulvestad",
+      "E. M. Dufresne",
+      "A. R. Sandy",
+      "E. E. Fullerton",
+      "O. G. Shpyrko"
+    ],
+    "doi": "10.1103/PhysRevB.94.174110",
+    "url": "https://doi.org/10.1103/PhysRevB.94.174110"
+  },
+  "020_Shpyrko_2007.pdf": {
+    "title": "Direct measurement of antiferromagnetic domain fluctuations",
+    "journal": "Nature",
+    "year": 2007,
+    "authors": [
+      "O. G. Shpyrko",
+      "E. D. Isaacs",
+      "J. M. Logan",
+      "Yejun Feng",
+      "G. Aeppli",
+      "R. Jaramillo",
+      "H. C. Kim",
+      "T. F. Rosenbaum",
+      "P. Zschack",
+      "M. Sprung",
+      "S. Narayanan",
+      "A. R. Sandy"
+    ],
+    "doi": "10.1038/nature05776",
+    "url": "https://doi.org/10.1038/nature05776"
+  },
+  "021_Su_2012.pdf": {
+    "title": "Collective pinning dynamics of charge-density waves in 1<mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mml:mi>T</mml:mi></mml:math>-TaS<mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mml:msub><mml:mrow/><mml:mn>2</mml:mn></mml:msub></mml:math>",
+    "journal": "Physical Review B",
+    "year": 2012,
+    "authors": [
+      "Jun-Dar Su",
+      "Alec R. Sandy",
+      "Jyoti Mohanty",
+      "Oleg G. Shpyrko",
+      "Mark Sutton"
+    ],
+    "doi": "10.1103/PhysRevB.86.205105",
+    "url": "https://doi.org/10.1103/PhysRevB.86.205105"
+  },
+  "022_Fluerasu_2005.pdf": {
+    "title": "X-Ray Intensity Fluctuation Spectroscopy Studies on Phase-Ordering Systems",
+    "journal": "Physical Review Letters",
+    "year": 2005,
+    "authors": [
+      "Andrei Fluerasu",
+      "Mark Sutton",
+      "Eric M. Dufresne"
+    ],
+    "doi": "10.1103/PhysRevLett.94.055501",
+    "url": "https://doi.org/10.1103/PhysRevLett.94.055501"
+  },
+  "023_Sanborn_2011.pdf": {
+    "title": "Direct Measurement of Microstructural Avalanches during the Martensitic Transition of Cobalt Using Coherent X-Ray Scattering",
+    "journal": "Physical Review Letters",
+    "year": 2011,
+    "authors": [
+      "Christopher Sanborn",
+      "Karl F. Ludwig",
+      "Michael C. Rogers",
+      "Mark Sutton"
+    ],
+    "doi": "10.1103/PhysRevLett.107.015702",
+    "url": "https://doi.org/10.1103/PhysRevLett.107.015702"
+  },
+  "024_Livet_2015.pdf": {
+    "title": "Ordering fluctuation dynamics in<mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\"><mml:msub><mml:mi>AuAgZn</mml:mi><mml:mn>2</mml:mn></mml:msub></mml:math>",
+    "journal": "Physical Review B",
+    "year": 2015,
+    "authors": [
+      "Fr\u00e9d\u00e9ric Livet",
+      "Mathieu F\u00e8vre",
+      "Guillaume Beutier",
+      "Mark Sutton"
+    ],
+    "doi": "10.1103/PhysRevB.92.094102",
+    "url": "https://doi.org/10.1103/PhysRevB.92.094102"
+  },
+  "025_Pierce_2009.pdf": {
+    "title": "Surface X-Ray Speckles: Coherent Surface Diffraction from Au(001)",
+    "journal": "Physical Review Letters",
+    "year": 2009,
+    "authors": [
+      "M. S. Pierce",
+      "K. C. Chang",
+      "D. Hennessy",
+      "V. Komanicky",
+      "M. Sprung",
+      "A. Sandy",
+      "H. You"
+    ],
+    "doi": "10.1103/PhysRevLett.103.165501",
+    "url": "https://doi.org/10.1103/PhysRevLett.103.165501"
+  },
+  "026_Pierce_2011.pdf": {
+    "title": "Persistent oscillations of x-ray speckles: Pt (001) step flow",
+    "journal": "Applied Physics Letters",
+    "year": 2011,
+    "authors": [
+      "M. S. Pierce",
+      "D. C. Hennessy",
+      "K. C. Chang",
+      "V. Komanicky",
+      "J. Strzalka",
+      "A. Sandy",
+      "A. Barbour",
+      "H. You"
+    ],
+    "doi": "10.1063/1.3640227",
+    "url": "https://doi.org/10.1063/1.3640227"
+  },
+  "027_Pierce_2011.pdf": {
+    "title": "In Situ Coherent X-ray Scattering and Scanning Tunneling Microscopy Studies of Hexagonally Reconstructed Au(001) in Electrolytes",
+    "journal": "ECS Transactions",
+    "year": 2011,
+    "authors": [
+      "M. Pierce",
+      "V. Komanicky",
+      "A. Barbour",
+      "D. Hennessy",
+      "J-D Su",
+      "A. Sandy",
+      "Chenhui Zhu",
+      "Hoydoo You"
+    ],
+    "doi": "10.1149/1.3641820",
+    "url": "https://doi.org/10.1149/1.3641820"
+  },
+  "028_Pierce_2012.pdf": {
+    "title": "Dynamics of the Au (001) surface in electrolytes:<i>In situ</i>coherent x-ray scattering",
+    "journal": "Physical Review B",
+    "year": 2012,
+    "authors": [
+      "Michael S. Pierce",
+      "Vladimir Komanicky",
+      "Andi Barbour",
+      "Daniel C. Hennessy",
+      "Chenhui Zhu",
+      "Alec Sandy",
+      "Hoydoo You"
+    ],
+    "doi": "10.1103/PhysRevB.86.085410",
+    "url": "https://doi.org/10.1103/PhysRevB.86.085410"
+  },
+  "029_Pierce_2012.pdf": {
+    "title": "Coherent x-ray scattering experiments of Pt(001) surface dynamics near a roughening transition",
+    "journal": "Physical Review B",
+    "year": 2012,
+    "authors": [
+      "M. S. Pierce",
+      "A. Barbour",
+      "V. Komanicky",
+      "D. Hennessy",
+      "H. You"
+    ],
+    "doi": "10.1103/PhysRevB.86.184108",
+    "url": "https://doi.org/10.1103/PhysRevB.86.184108"
+  },
+  "030_Karl_2015.pdf": {
+    "title": "Charge-induced equilibrium dynamics and structure at the Ag(001)\u2013electrolyte interface",
+    "journal": "Physical Chemistry Chemical Physics",
+    "year": 2015,
+    "authors": [
+      "Robert M. Karl Jr.",
+      "Andi Barbour",
+      "Vladimir Komanicky",
+      "Chenhui Zhu",
+      "Alec Sandy",
+      "Michael S. Pierce",
+      "Hoydoo You"
+    ],
+    "doi": "10.1039/C5CP02138C",
+    "url": "https://doi.org/10.1039/C5CP02138C"
+  },
+  "031_Narayanan_2006.pdf": {
+    "title": "Dynamics and Internal Stress at the Nanoscale Related to Unique Thermomechanical Behavior in Polymer Nanocomposites",
+    "journal": "Physical Review Letters",
+    "year": 2006,
+    "authors": [
+      "R. Aravinda Narayanan",
+      "P. Thiyagarajan",
+      "S. Lewis",
+      "A. Bansal",
+      "L. S. Schadler",
+      "L. B. Lurio"
+    ],
+    "doi": "10.1103/PhysRevLett.97.075505",
+    "url": "https://doi.org/10.1103/PhysRevLett.97.075505"
+  },
+  "032_Narayanan_2007.pdf": {
+    "title": "Particle Dynamics in Polymer-Metal Nanocomposite Thin Films on Nanometer-Length Scales",
+    "journal": "Physical Review Letters",
+    "year": 2007,
+    "authors": [
+      "Suresh Narayanan",
+      "Dong Ryeol Lee",
+      "Aleta Hagman",
+      "Xuefa Li",
+      "Jin Wang"
+    ],
+    "doi": "10.1103/PhysRevLett.98.185506",
+    "url": "https://doi.org/10.1103/PhysRevLett.98.185506"
+  },
+  "033_Kandar_2009.pdf": {
+    "title": "Unusual dynamical arrest in polymer grafted nanoparticles",
+    "journal": "The Journal of Chemical Physics",
+    "year": 2009,
+    "authors": [
+      "A. K. Kandar",
+      "S. Srivastava",
+      "J. K. Basu",
+      "M. K. Mukhopadhyay",
+      "S. Seifert",
+      "S. Narayanan"
+    ],
+    "doi": "10.1063/1.3090484",
+    "url": "https://doi.org/10.1063/1.3090484"
+  },
+  "034_Srivastava_2009.pdf": {
+    "title": "Complex dynamics in polymer nanocomposites",
+    "journal": "Physical Review E",
+    "year": 2009,
+    "authors": [
+      "S. Srivastava",
+      "A. K. Kandar",
+      "J. K. Basu",
+      "M. K. Mukhopadhyay",
+      "L. B. Lurio",
+      "S. Narayanan",
+      "S. K. Sinha"
+    ],
+    "doi": "10.1103/PhysRevE.79.021408",
+    "url": "https://doi.org/10.1103/PhysRevE.79.021408"
+  },
+  "035_Srivastava_2010.pdf": {
+    "title": "Communication: Unusual dynamics of hybrid nanoparticles and their binary mixtures",
+    "journal": "The Journal of Chemical Physics",
+    "year": 2010,
+    "authors": [
+      "S. Srivastava",
+      "Sivasurender Chandran",
+      "A. K. Kandar",
+      "C. K. Sarika",
+      "J. K. Basu",
+      "S. Narayanan",
+      "A. Sandy"
+    ],
+    "doi": "10.1063/1.3495480",
+    "url": "https://doi.org/10.1063/1.3495480"
+  },
+  "036_Sikorski_2011.pdf": {
+    "title": "Depletion-Induced Structure and Dynamics in Bimodal Colloidal Suspensions",
+    "journal": "Physical Review Letters",
+    "year": 2011,
+    "authors": [
+      "M. Sikorski",
+      "A. R. Sandy",
+      "S. Narayanan"
+    ],
+    "doi": "10.1103/PhysRevLett.106.188301",
+    "url": "https://doi.org/10.1103/PhysRevLett.106.188301"
+  },
+  "037_Guo_2012.pdf": {
+    "title": "Entanglement-Controlled Subdiffusion of Nanoparticles within Concentrated Polymer Solutions",
+    "journal": "Physical Review Letters",
+    "year": 2012,
+    "authors": [
+      "Hongyu Guo",
+      "Gilles Bourret",
+      "R. Bruce Lennox",
+      "Mark Sutton",
+      "James L. Harden",
+      "Robert L. Leheny"
+    ],
+    "doi": "10.1103/PhysRevLett.109.055901",
+    "url": "https://doi.org/10.1103/PhysRevLett.109.055901"
+  },
+  "038_Kim_2012.pdf": {
+    "title": "Polymer nanocomposites: polymer and particle dynamics",
+    "journal": "Soft Matter",
+    "year": 2012,
+    "authors": [
+      "Daniel Kim",
+      "Samanvaya Srivastava",
+      "Suresh Narayanan",
+      "Lynden A. Archer"
+    ],
+    "doi": "10.1039/c2sm26325d",
+    "url": "https://doi.org/10.1039/c2sm26325d"
+  },
+  "039_Srivastava_2013.pdf": {
+    "title": "Structure and Transport Anomalies in Soft Colloids",
+    "journal": "Physical Review Letters",
+    "year": 2013,
+    "authors": [
+      "Samanvaya Srivastava",
+      "Lynden A. Archer",
+      "Suresh Narayanan"
+    ],
+    "doi": "10.1103/PhysRevLett.110.148302",
+    "url": "https://doi.org/10.1103/PhysRevLett.110.148302"
+  },
+  "040_Jang_2014.pdf": {
+    "title": "Dynamics of Cadmium Sulfide Nanoparticles within Polystyrene Melts",
+    "journal": "Macromolecules",
+    "year": 2014,
+    "authors": [
+      "Woo-Sik Jang",
+      "Peter Koo",
+      "Kyle Bryson",
+      "Suresh Narayanan",
+      "Alec Sandy",
+      "Thomas P. Russell",
+      "Simon G. Mochrie"
+    ],
+    "doi": "10.1021/ma500956b",
+    "url": "https://doi.org/10.1021/ma500956b"
+  },
+  "041_Agrawal_2015.pdf": {
+    "title": "Dynamics and yielding of binary self-suspended nanoparticle fluids",
+    "journal": "Soft Matter",
+    "year": 2015,
+    "authors": [
+      "Akanksha Agrawal",
+      "Hsiu-Yu Yu",
+      "Samanvaya Srivastava",
+      "Snehashis Choudhury",
+      "Suresh Narayanan",
+      "Lynden A. Archer"
+    ],
+    "doi": "10.1039/C5SM00639B",
+    "url": "https://doi.org/10.1039/C5SM00639B"
+  },
+  "042_Ranka_2015.pdf": {
+    "title": "Impact of small changes in particle surface chemistry for unentangled polymer nanocomposites",
+    "journal": "Soft Matter",
+    "year": 2015,
+    "authors": [
+      "Moulik Ranka",
+      "Nihal Varkey",
+      "Subramanian Ramakrishnan",
+      "Charles F. Zukoski"
+    ],
+    "doi": "10.1039/C4SM01598C",
+    "url": "https://doi.org/10.1039/C4SM01598C"
+  },
+  "043_Srivastava_2015.pdf": {
+    "title": "Hyperdiffusive Dynamics in Newtonian Nanoparticle Fluids",
+    "journal": "ACS Macro Letters",
+    "year": 2015,
+    "authors": [
+      "Samanvaya Srivastava",
+      "Praveen Agarwal",
+      "Rahul Mangal",
+      "Donald L. Koch",
+      "Suresh Narayanan",
+      "Lynden A. Archer"
+    ],
+    "doi": "10.1021/acsmacrolett.5b00319",
+    "url": "https://doi.org/10.1021/acsmacrolett.5b00319"
+  },
+  "044_Grein_2016.pdf": {
+    "title": "Exploring the relationship between nanoscale dynamics and macroscopic rheology in natural polymer gums",
+    "journal": "Soft Matter",
+    "year": 2016,
+    "authors": [
+      "Aline Grein-Iankovski",
+      "Izabel C. Riegel-Vidotti",
+      "Fernanda F. Simas-Tosin",
+      "Suresh Narayanan",
+      "Robert L. Leheny",
+      "Alec R. Sandy"
+    ],
+    "doi": "10.1039/C6SM01492E",
+    "url": "https://doi.org/10.1039/C6SM01492E"
+  },
+  "045_Jang_2016.pdf": {
+    "title": "The Static Structure and Dynamics of Cadmium Sulfide Nanoparticles within Poly(styrene\u2010<i>block</i>\u2010isoprene) Diblock Copolymer Melts",
+    "journal": "Macromolecular Chemistry and Physics",
+    "year": 2015,
+    "authors": [
+      "Woo\u2010Sik Jang",
+      "Peter Koo",
+      "Kyle Bryson",
+      "Suresh Narayanan",
+      "Alec R. Sandy",
+      "Thomas P. Russell",
+      "Simon G. Mochrie"
+    ],
+    "doi": "10.1002/macp.201500357",
+    "url": "https://doi.org/10.1002/macp.201500357"
+  },
+  "046_Liu_2016.pdf": {
+    "title": "Structure and Entanglement Factors on Dynamics of Polymer-Grafted Nanoparticles",
+    "journal": "ACS Macro Letters",
+    "year": 2016,
+    "authors": [
+      "Siqi Liu",
+      "Erkan Senses",
+      "Yang Jiao",
+      "Suresh Narayanan",
+      "Pinar Akcora"
+    ],
+    "doi": "10.1021/acsmacrolett.6b00089",
+    "url": "https://doi.org/10.1021/acsmacrolett.6b00089"
+  },
+  "047_Mangal_2016.pdf": {
+    "title": "Size-Dependent Particle Dynamics in Entangled Polymer Nanocomposites",
+    "journal": "Langmuir",
+    "year": 2016,
+    "authors": [
+      "Rahul Mangal",
+      "Samanvaya Srivastava",
+      "Suresh Narayanan",
+      "Lynden A. Archer"
+    ],
+    "doi": "10.1021/acs.langmuir.5b03311",
+    "url": "https://doi.org/10.1021/acs.langmuir.5b03311"
+  },
+  "048_Poling_2016.pdf": {
+    "title": "Structure and Dynamics of Interacting Nanoparticles in Semidilute Polymer Solutions",
+    "journal": "Macromolecules",
+    "year": 2016,
+    "authors": [
+      "Ryan Poling-Skutvik",
+      "Katrina Irene S. Mongcopa",
+      "Antonio Faraone",
+      "Suresh Narayanan",
+      "Jacinta C. Conrad",
+      "Ramanan Krishnamoorti"
+    ],
+    "doi": "10.1021/acs.macromol.6b01277",
+    "url": "https://doi.org/10.1021/acs.macromol.6b01277"
+  },
+  "049_Srivastava_2016.pdf": {
+    "title": "Multiple dynamic regimes in colloid\u2010polymer dispersions: New insight using X\u2010ray photon correlation spectroscopy",
+    "journal": "Journal of Polymer Science Part B: Polymer Physics",
+    "year": 2015,
+    "authors": [
+      "Sunita Srivastava",
+      "Suhasini Kishore",
+      "Suresh Narayanan",
+      "Alec R. Sandy",
+      "Surita R. Bhatia"
+    ],
+    "doi": "10.1002/polb.23973",
+    "url": "https://doi.org/10.1002/polb.23973"
+  },
+  "050_Lee_2017.pdf": {
+    "title": "Nanorod Mobility within Entangled Wormlike Micelle Solutions",
+    "journal": "Macromolecules",
+    "year": 2016,
+    "authors": [
+      "Jonghun Lee",
+      "Aline Grein-Iankovski",
+      "Suresh Narayanan",
+      "Robert L. Leheny"
+    ],
+    "doi": "10.1021/acs.macromol.6b02091",
+    "url": "https://doi.org/10.1021/acs.macromol.6b02091"
+  },
+  "051_Senses_2017.pdf": {
+    "title": "Small Particle Driven Chain Disentanglements in Polymer Nanocomposites",
+    "journal": "Physical Review Letters",
+    "year": 2017,
+    "authors": [
+      "Erkan Senses",
+      "Siyam M. Ansar",
+      "Christopher L. Kitchens",
+      "Yimin Mao",
+      "Suresh Narayanan",
+      "Bharath Natarajan",
+      "Antonio Faraone"
+    ],
+    "doi": "10.1103/PhysRevLett.118.147801",
+    "url": "https://doi.org/10.1103/PhysRevLett.118.147801"
+  },
+  "053_Johnson_2012.pdf": {
+    "title": "Capturing dynamics with Eiger, a fast-framing X-ray detector",
+    "journal": "Journal of Synchrotron Radiation",
+    "year": 2012,
+    "authors": [
+      "I. Johnson",
+      "A. Bergamaschi",
+      "J. Buitenhuis",
+      "R. Dinapoli",
+      "D. Greiffenberg",
+      "B. Henrich",
+      "T. Ikonen",
+      "G. Meier",
+      "A. Menzel",
+      "A. Mozzanica",
+      "V. Radicci",
+      "D. K. Satapathy",
+      "B. Schmitt",
+      "X. Shi"
+    ],
+    "doi": "10.1107/S0909049512035972",
+    "url": "https://doi.org/10.1107/S0909049512035972"
+  },
+  "054_Pennicard_2012.pdf": {
+    "title": "LAMBDA \u2014 Large Area Medipix3-Based Detector Array",
+    "journal": "Journal of Instrumentation",
+    "year": 2012,
+    "authors": [
+      "D Pennicard",
+      "S Lange",
+      "S Smoljanin",
+      "H Hirsemann",
+      "H Graafsma"
+    ],
+    "doi": "10.1088/1748-0221/7/11/C11009",
+    "url": "https://doi.org/10.1088/1748-0221/7/11/C11009"
+  },
+  "055_Chen_2011.pdf": {
+    "title": "A brief overview of bulk metallic glasses",
+    "journal": "NPG Asia Materials",
+    "year": 2011,
+    "authors": [
+      "Mingwei Chen"
+    ],
+    "doi": "10.1038/asiamat.2011.30",
+    "url": "https://doi.org/10.1038/asiamat.2011.30"
+  },
+  "056_Schroers_2013.pdf": {
+    "title": "Bulk Metallic Glasses",
+    "journal": "Physics Today",
+    "year": 2013,
+    "authors": [
+      "Jan Schroers"
+    ],
+    "doi": "10.1063/PT.3.1885",
+    "url": "https://doi.org/10.1063/PT.3.1885"
+  },
+  "057_Byrne_2008.pdf": {
+    "title": "Bulk metallic glasses",
+    "journal": "Science",
+    "year": 2008,
+    "authors": [
+      "C. J. Byrne",
+      "M. Eldrup"
+    ],
+    "doi": "10.1126/science.1158275",
+    "url": "https://doi.org/10.1126/science.1158275"
+  },
+  "058_Martinez_2001.pdf": {
+    "title": "A thermodynamic connection to the fragility of glass-forming liquids",
+    "journal": "Nature",
+    "year": 2001,
+    "authors": [
+      "L-M. Martinez",
+      "C. A. Angell"
+    ],
+    "doi": "10.1038/35069035",
+    "url": "https://doi.org/10.1038/35069035"
+  },
+  "059_Berthier_2005.pdf": {
+    "title": "Direct experimental evidence of a growing length scale accompanying the glass transition",
+    "journal": "Science",
+    "year": 2005,
+    "authors": [
+      "Ludovic Berthier",
+      "Giulio Biroli",
+      "Jean-Philippe Bouchaud",
+      "Luca Cipelletti"
+    ],
+    "doi": "10.1126/science.1120714",
+    "url": "https://doi.org/10.1126/science.1120714"
+  },
+  "059_Berthier_2005_old.pdf": {
+    "SKIP": true,
+    "note": "Duplicate old version of 059_Berthier_2005.pdf \u2014 exclude from Qdrant updates"
+  },
+  "060_Ruta_2014.pdf": {
+    "title": "Revealing the fast atomic motion of network glasses",
+    "journal": "Nature Communications",
+    "year": 2014,
+    "authors": [
+      "B. Ruta",
+      "G. Baldi",
+      "Y. Chushkin",
+      "B. Ruffl\u00e9",
+      "L. Cristofolini",
+      "A. Fontana",
+      "M. Zanatta",
+      "F. Nazzani"
+    ],
+    "doi": "10.1038/ncomms4939",
+    "url": "https://doi.org/10.1038/ncomms4939"
+  },
+  "061_Giordano_2016.pdf": {
+    "title": "Unveiling the structural arrangements responsible for the atomic dynamics in metallic glasses during physical aging",
+    "journal": "Nature Communications",
+    "year": 2016,
+    "authors": [
+      "V. M. Giordano",
+      "B Ruta"
+    ],
+    "doi": "10.1038/ncomms10344",
+    "url": "https://doi.org/10.1038/ncomms10344"
+  },
+  "062_Ruta_2012.pdf": {
+    "title": "Atomic-Scale Relaxation Dynamics and Aging in a Metallic Glass Probed by X-Ray Photon Correlation Spectroscopy",
+    "journal": "Physical Review Letters",
+    "year": 2012,
+    "authors": [
+      "B. Ruta",
+      "Y. Chushkin",
+      "G. Monaco",
+      "L. Cipelletti",
+      "E. Pineda",
+      "P. Bruna",
+      "V. M. Giordano",
+      "M. Gonzalez-Silveira"
+    ],
+    "doi": "10.1103/PhysRevLett.109.165701",
+    "url": "https://doi.org/10.1103/PhysRevLett.109.165701"
+  },
+  "063_Evenson_2015.pdf": {
+    "title": "X-ray photon correlation spectroscopy reveals intermittent aging dynamics in a metallic glass",
+    "journal": "Physical Review Letters",
+    "year": 2015,
+    "authors": [
+      "Z. Evenson",
+      "B. Ruta",
+      "S. Hechler",
+      "M. Stolpe",
+      "E. Pineda"
+    ],
+    "doi": "10.1103/PhysRevLett.115.175701",
+    "url": "https://doi.org/10.1103/PhysRevLett.115.175701"
+  },
+  "064_Thurn_1996.pdf": {
+    "title": "Photon correlation spectroscopy of colloidal palladium using a coherent X-ray beam",
+    "journal": "Physical Review Letters",
+    "year": 1996,
+    "authors": [
+      "T. Thurn-Albrecht",
+      "W. Steffen",
+      "A. Patkowski",
+      "G. Meier",
+      "E. W. Fischer"
+    ],
+    "doi": "10.1103/PhysRevLett.77.5437",
+    "url": "https://doi.org/10.1103/PhysRevLett.77.5437"
+  },
+  "065_Lal_2001.pdf": {
+    "title": "Dynamics and correlations in magnetic colloidal systems studied by X-ray photon correlation spectroscopy",
+    "journal": "European Physical Journal E",
+    "year": 2001,
+    "authors": [
+      "J. Lal",
+      "D. Abernathy",
+      "L. Auvray",
+      "O. Diat",
+      "G. Gr\u00fcbel"
+    ],
+    "doi": "10.1007/s101890170116",
+    "url": "https://doi.org/10.1007/s101890170116"
+  },
+  "066_Autenrieth_2007.pdf": {
+    "title": "The dynamic behavior of magnetic colloids in suspension",
+    "journal": "Journal of Applied Crystallography",
+    "year": 2007,
+    "authors": [
+      "T. Autenrieth",
+      "A. Robert",
+      "J. Wagner",
+      "G. Gr\u00fcbel"
+    ],
+    "doi": "10.1107/S0021889807001859",
+    "url": "https://doi.org/10.1107/S0021889807001859"
+  },
+  "067_Fluerasu_2007.pdf": {
+    "title": "Slow dynamics and aging in colloidal gels studied by x-ray photon correlation spectroscopy",
+    "journal": "Physical Review E",
+    "year": 2007,
+    "authors": [
+      "Andrei Fluerasu",
+      "Abdellatif Moussa\u00efd",
+      "Anders Madsen",
+      "Andrew Schofield"
+    ],
+    "doi": "10.1103/PhysRevE.76.010401",
+    "url": "https://doi.org/10.1103/PhysRevE.76.010401"
+  },
+  "068_Trappe_2007.pdf": {
+    "title": "Investigation of q-dependent dynamical heterogeneity in a colloidal gel by X-ray photon correlation spectroscopy",
+    "journal": "Physical Review E",
+    "year": 2007,
+    "authors": [
+      "V. Trappe",
+      "E. Pitard",
+      "L. Ramos",
+      "A. Robert",
+      "H. Bissig",
+      "L. Cipelletti"
+    ],
+    "doi": "10.1103/PhysRevE.76.051404",
+    "url": "https://doi.org/10.1103/PhysRevE.76.051404"
+  },
+  "069_Robert_2008.pdf": {
+    "title": "Dynamics in dense suspensions of charge-stabilized colloidal particles",
+    "journal": "The European Physical Journal E",
+    "year": 2008,
+    "authors": [
+      "A. Robert",
+      "J. Wagner",
+      "W. H\u00e4rtl",
+      "T. Autenrieth",
+      "G. Gr\u00fcbel"
+    ],
+    "doi": "10.1140/epje/i2007-10265-5",
+    "url": "https://doi.org/10.1140/epje/i2007-10265-5"
+  },
+  "070_Guo_2010.pdf": {
+    "title": "Connecting nanoscale motion and rheology of gel-forming colloidal suspensions",
+    "journal": "Physical Review E",
+    "year": 2010,
+    "authors": [
+      "Hongyu Guo",
+      "S. Ramakrishnan",
+      "James L. Harden",
+      "Robert L. Leheny"
+    ],
+    "doi": "10.1103/PhysRevE.81.050401",
+    "url": "https://doi.org/10.1103/PhysRevE.81.050401"
+  },
+  "071_Guo_2011.pdf": {
+    "title": "Gel formation and aging in weakly attractive nanocolloid suspensions at intermediate concentrations",
+    "journal": "The Journal of Chemical Physics",
+    "year": 2011,
+    "authors": [
+      "Hongyu Guo",
+      "S. Ramakrishnan",
+      "James L. Harden",
+      "Robert L. Leheny"
+    ],
+    "doi": "10.1063/1.3653380",
+    "url": "https://doi.org/10.1063/1.3653380"
+  },
+  "072_Spannuth_2011.pdf": {
+    "title": "Dynamics of colloidal particles in ice",
+    "journal": "The Journal of Chemical Physics",
+    "year": 2011,
+    "authors": [
+      "Melissa Spannuth",
+      "S. G. J. Mochrie",
+      "S. S. L. Peppin",
+      "J. S. Wettlaufer"
+    ],
+    "doi": "10.1063/1.3665927",
+    "url": "https://doi.org/10.1063/1.3665927"
+  },
+  "073_Orsi_2012.pdf": {
+    "title": "Dynamics in dense hard-sphere colloidal suspensions",
+    "journal": "Physical Review E",
+    "year": 2012,
+    "authors": [
+      "D. Orsi",
+      "A. Fluerasu",
+      "A. Moussaid",
+      "F. Zontone",
+      "L. Cristofolini",
+      "A. Madsen"
+    ],
+    "doi": "10.1103/PhysRevE.85.011402",
+    "url": "https://doi.org/10.1103/PhysRevE.85.011402"
+  },
+  "074_Westermeier_2012.pdf": {
+    "title": "Structure and short-time dynamics in concentrated suspensions of charged colloids",
+    "journal": "The Journal of Chemical Physics",
+    "year": 2012,
+    "authors": [
+      "Fabian Westermeier",
+      "Birgit Fischer",
+      "Wojciech Roseker",
+      "Gerhard Gr\u00fcbel",
+      "Gerhard N\u00e4gele",
+      "Marco Heinen"
+    ],
+    "doi": "10.1063/1.4751544",
+    "url": "https://doi.org/10.1063/1.4751544"
+  },
+  "075_Angelini_2013.pdf": {
+    "title": "Dichotomic aging behaviour in a colloidal glass",
+    "journal": "Soft Matter",
+    "year": 2013,
+    "authors": [
+      "Roberta Angelini",
+      "Laura Zulian",
+      "Andrei Fluerasu",
+      "Anders Madsen",
+      "Giancarlo Ruocco",
+      "Barbara Ruzicka"
+    ],
+    "doi": "10.1039/c3sm52173g",
+    "url": "https://doi.org/10.1039/c3sm52173g"
+  },
+  "076_Zhang_2013.pdf": {
+    "title": "Structure and Dynamics Studies of Concentrated Micrometer-Sized Colloidal Suspensions",
+    "journal": "Langmuir",
+    "year": 2013,
+    "authors": [
+      "Fan Zhang",
+      "Andrew J. Allen",
+      "Lyle E. Levine",
+      "Jan Ilavsky",
+      "Gabrielle G. Long"
+    ],
+    "doi": "10.1021/la3044768",
+    "url": "https://doi.org/10.1021/la3044768"
+  },
+  "077_Angelini_2014.pdf": {
+    "title": "Aging behavior of the localization length in a colloidal glass",
+    "journal": "Colloids and Surfaces A: Physicochemical and Engineering Aspects",
+    "year": 2014,
+    "authors": [
+      "R. Angelini",
+      "A. Madsen",
+      "A. Fluerasu",
+      "G. Ruocco",
+      "B. Ruzicka"
+    ],
+    "doi": "10.1016/j.colsurfa.2014.03.087",
+    "url": "https://doi.org/10.1016/j.colsurfa.2014.03.087"
+  },
+  "078_Angelini_2014.pdf": {
+    "title": "Glass\u2013glass transition during aging of a colloidal clay",
+    "journal": "Nature Communications",
+    "year": 2014,
+    "authors": [
+      "Roberta Angelini",
+      "Emanuela Zaccarelli",
+      "Flavio Augusto de Melo Marques",
+      "Michael Sztucki",
+      "Andrei Fluerasu",
+      "Giancarlo Ruocco",
+      "Barbara Ruzicka"
+    ],
+    "doi": "10.1038/ncomms5049",
+    "url": "https://doi.org/10.1038/ncomms5049"
+  },
+  "079_Marques_2015.pdf": {
+    "title": "Structural and microscopic relaxations in a colloidal glass",
+    "journal": "Soft Matter",
+    "year": 2015,
+    "authors": [
+      "Flavio Augusto de Melo Marques",
+      "Roberta Angelini",
+      "Emanuela Zaccarelli",
+      "Bela Farago",
+      "Beatrice Ruta",
+      "Giancarlo Ruocco",
+      "Barbara Ruzicka"
+    ],
+    "doi": "10.1039/C4SM02010C",
+    "url": "https://doi.org/10.1039/C4SM02010C"
+  },
+  "080_Pusey_1991.pdf": {
+    "title": "Colloidal suspensions",
+    "journal": "Liquids, Freezing and the Glass Transition",
+    "year": 1991,
+    "authors": [
+      "P. N. Pusey"
+    ],
+    "doi": "",
+    "url": ""
+  },
+  "081_deGennes_1979.pdf": {
+    "title": "Scaling Concepts in Polymer Physics",
+    "journal": "Cornell University Press",
+    "year": 1979,
+    "authors": [
+      "Pierre-Gilles de Gennes"
+    ],
+    "doi": "",
+    "url": ""
+  },
+  "082_Hunter_2012.pdf": {
+    "title": "The physics of the colloidal glass transition",
+    "journal": "Reports on Progress in Physics",
+    "year": 2012,
+    "authors": [
+      "Gary L Hunter",
+      "Eric R Weeks"
+    ],
+    "doi": "10.1088/0034-4885/75/6/066501",
+    "url": "https://doi.org/10.1088/0034-4885/75/6/066501"
+  },
+  "083_Lumma_2000.pdf": {
+    "title": "Structure and dynamics of concentrated dispersions of polystyrene latex spheres in glycerol: static and dynamic X-ray scattering",
+    "journal": "Physical Review E",
+    "year": 2000,
+    "authors": [
+      "D. Lumma",
+      "L. B. Lurio",
+      "M. A. Borthwick",
+      "P. Falus",
+      "S. G. J. Mochrie"
+    ],
+    "doi": "10.1103/PhysRevE.62.8258",
+    "url": "https://doi.org/10.1103/PhysRevE.62.8258"
+  },
+  "084_Beysens_1999.pdf": {
+    "title": "Wetting-induced aggregation of colloids",
+    "journal": "Journal of Statistical Physics",
+    "year": 1999,
+    "authors": [
+      "D. Beysens",
+      "T. Narayanan"
+    ],
+    "doi": "10.1023/A:1004506601807",
+    "url": "https://doi.org/10.1023/A:1004506601807"
+  },
+  "085_Pontoni_2003.pdf": {
+    "title": "Microstructure and Dynamics near an Attractive Colloidal Glass Transition",
+    "journal": "Physical Review Letters",
+    "year": 2003,
+    "authors": [
+      "D. Pontoni",
+      "T. Narayanan",
+      "J.-M. Petit",
+      "G. Gr\u00fcbel",
+      "D. Beysens"
+    ],
+    "doi": "10.1103/PhysRevLett.90.188301",
+    "url": "https://doi.org/10.1103/PhysRevLett.90.188301"
+  },
+  "086_Lu_2008.pdf": {
+    "title": "How a Liquid Becomes a Glass Both on Cooling and on Heating",
+    "journal": "Physical Review Letters",
+    "year": 2008,
+    "authors": [
+      "Xinhui Lu",
+      "S. G. J. Mochrie",
+      "S. Narayanan",
+      "A. R. Sandy",
+      "M. Sprung"
+    ],
+    "doi": "10.1103/PhysRevLett.100.045701",
+    "url": "https://doi.org/10.1103/PhysRevLett.100.045701"
+  },
+  "087_Lu_2010.pdf": {
+    "title": "Temperature-dependent structural arrest of silica colloids in a water\u2013lutidine binary mixture",
+    "journal": "Soft Matter",
+    "year": 2010,
+    "authors": [
+      "Xinhui Lu",
+      "S. G. J. Mochrie",
+      "S. Narayanan",
+      "A. R. Sandy",
+      "M. Sprung"
+    ],
+    "doi": "10.1039/c0sm00152j",
+    "url": "https://doi.org/10.1039/c0sm00152j"
+  },
+  "088_Falus_2004.pdf": {
+    "title": "Fast CCD camera for x-ray photon correlation spectroscopy and time-resolved x-ray scattering and imaging",
+    "journal": "Review of Scientific Instruments",
+    "year": 2004,
+    "authors": [
+      "P. Falus",
+      "M. A. Borthwick",
+      "S. G. J. Mochrie"
+    ],
+    "doi": "10.1063/1.1808913",
+    "url": "https://doi.org/10.1063/1.1808913"
+  },
+  "089_Gotze_2002.pdf": {
+    "title": "Logarithmic relaxation in glass-forming systems",
+    "journal": "Physical Review E",
+    "year": 2002,
+    "authors": [
+      "W. G\u00f6tze",
+      "M. Sperl"
+    ],
+    "doi": "10.1103/PhysRevE.66.011405",
+    "url": "https://doi.org/10.1103/PhysRevE.66.011405"
+  },
+  "090_Cipelletti_2000.pdf": {
+    "title": "Universal aging features in the restructuring of fractal colloidal gels",
+    "journal": "Physical Review Letters",
+    "year": 2000,
+    "authors": [
+      "L. Cipelletti",
+      "S. Manley",
+      "R. C. Ball",
+      "D. A. Weitz"
+    ],
+    "doi": "10.1103/PhysRevLett.84.2275",
+    "url": "https://doi.org/10.1103/PhysRevLett.84.2275"
+  },
+  "091_Bouchaud_2001.pdf": {
+    "title": "Anomalous dynamical light scattering in soft glassy gels",
+    "journal": "European Physical Journal E",
+    "year": 2001,
+    "authors": [
+      "J. P. Bouchaud",
+      "E. Pitard"
+    ],
+    "doi": "10.1007/s101890170030",
+    "url": "https://doi.org/10.1007/s101890170030"
+  },
+  "092_Akcora_2010.pdf": {
+    "title": "\u201cGel-like\u201d Mechanical Reinforcement in Polymer Nanocomposite Melts",
+    "journal": "Macromolecules",
+    "year": 2009,
+    "authors": [
+      "Pinar Akcora",
+      "Sanat K. Kumar",
+      "Joseph Moll",
+      "Sarah Lewis",
+      "Linda S. Schadler",
+      "Yu Li",
+      "Brian C. Benicewicz",
+      "Alec Sandy",
+      "Suresh Narayanan",
+      "Jan Ilavsky",
+      "Pappannan Thiyagarajan",
+      "Ralph H. Colby",
+      "Jack F. Douglas"
+    ],
+    "doi": "10.1021/ma902072d",
+    "url": "https://doi.org/10.1021/ma902072d"
+  },
+  "093_Chen_2016.pdf": {
+    "title": "Remarkable Stability of Charge Density Wave Order in<mml:math xmlns:mml=\"http://www.w3.org/1998/Math/MathML\" display=\"inline\"><mml:mrow><mml:mrow><mml:msub><mml:mrow><mml:mi>La</mml:mi></mml:mrow><mml:mrow><mml:mn>1.875</mml:mn></mml:mrow></mml:msub></mml:mrow><mml:mrow><mml:msub><mml:mrow><mml:mi>Ba</mml:mi></mml:mrow><mml:mrow><mml:mn>0.125</mml:mn></mml:mrow></mml:msub></mml:mrow><mml:mrow><mml:msub><mml:mrow><mml:mi>CuO</mml:mi></mml:mrow><mml:mrow><mml:mn>4</mml:mn></mml:mrow></mml:msub></mml:mrow></mml:mrow></mml:math>",
+    "journal": "Physical Review Letters",
+    "year": 2016,
+    "authors": [
+      "X.\u2009M. Chen",
+      "V. Thampy",
+      "C. Mazzoli",
+      "A.\u2009M. Barbour",
+      "H. Miao",
+      "G.\u2009D. Gu",
+      "Y. Cao",
+      "J.\u2009M. Tranquada",
+      "M.\u2009P.\u2009M. Dean",
+      "S.\u2009B. Wilkins"
+    ],
+    "doi": "10.1103/PhysRevLett.117.167001",
+    "url": "https://doi.org/10.1103/PhysRevLett.117.167001"
+  },
+  "094_Evans_2002.pdf": {
+    "title": "X-ray microdiffraction images of antiferromagnetic domain evolution in chromium",
+    "journal": "Science",
+    "year": 2002,
+    "authors": [
+      "P. G. Evans",
+      "E. D. Isaacs",
+      "G. Aeppli",
+      "Z. Cai",
+      "B. Lai"
+    ],
+    "doi": "10.1126/science.1068870",
+    "url": "https://doi.org/10.1126/science.1068870"
+  },
+  "095_Tripathi_2011.pdf": {
+    "title": "Dichroic coherent diffractive imaging",
+    "journal": "Proceedings of the National Academy of Sciences",
+    "year": 2011,
+    "authors": [
+      "Ashish Tripathi",
+      "Jyoti Mohanty",
+      "Sebastian H. Dietze",
+      "Oleg G. Shpyrko",
+      "Erik Shipton",
+      "Eric E. Fullerton",
+      "Sang Soo Kim",
+      "Ian McNulty"
+    ],
+    "doi": "10.1073/pnas.1104304108",
+    "url": "https://doi.org/10.1073/pnas.1104304108"
+  },
+  "096_Parkin_2008.pdf": {
+    "title": "Magnetic domain-wall racetrack memory",
+    "journal": "Science",
+    "year": 2008,
+    "authors": [
+      "S. S. P. Parkin",
+      "M. Hayashi",
+      "L. Thomas"
+    ],
+    "doi": "10.1126/science.1145799",
+    "url": "https://doi.org/10.1126/science.1145799"
+  },
+  "097_Allwood_2005.pdf": {
+    "title": "Magnetic domain-wall logic",
+    "journal": "Science",
+    "year": 2005,
+    "authors": [
+      "D. A. Allwood",
+      "G. Xiong",
+      "C. C. Faulkner",
+      "D. Atkinson",
+      "D. Petit",
+      "R. P. Cowburn"
+    ],
+    "doi": "10.1126/science.1108813",
+    "url": "https://doi.org/10.1126/science.1108813"
+  },
+  "098_Malik_1998.pdf": {
+    "title": "Coherent X-ray study of fluctuations during domain coarsening",
+    "journal": "Physical Review Letters",
+    "year": 1998,
+    "authors": [
+      "A. Malik",
+      "A. R. Sandy",
+      "L. B. Lurio",
+      "G. B. Stephenson",
+      "S. G. J. Mochrie"
+    ],
+    "doi": "10.1103/PhysRevLett.81.5832",
+    "url": "https://doi.org/10.1103/PhysRevLett.81.5832"
+  },
+  "099_Bikondoa_2017.pdf": {
+    "title": "On the use of two-time correlation functions for X-ray photon correlation spectroscopy data analysis",
+    "journal": "Journal of Applied Crystallography",
+    "year": 2017,
+    "authors": [
+      "Oier Bikondoa"
+    ],
+    "doi": "10.1107/S1600576717000577",
+    "url": "https://doi.org/10.1107/S1600576717000577"
+  },
+  "100_Bonn_1999.pdf": {
+    "title": "Laponite:\u2009 What Is the Difference between a Gel and a Glass?",
+    "journal": "Langmuir",
+    "year": 1999,
+    "authors": [
+      "Daniel Bonn",
+      "Hamid Kellay",
+      "Hajime Tanaka",
+      "Gerard Wegdam",
+      "Jacques Meunier"
+    ],
+    "doi": "10.1021/la990167+",
+    "url": "https://doi.org/10.1021/la990167+"
+  },
+  "101_Zaccarelli_2007.pdf": {
+    "title": "Colloidal gels: equilibrium and non-equilibrium routes",
+    "journal": "Journal of Physics: Condensed Matter",
+    "year": 2007,
+    "authors": [
+      "Emanuela Zaccarelli"
+    ],
+    "doi": "10.1088/0953-8984/19/32/323101",
+    "url": "https://doi.org/10.1088/0953-8984/19/32/323101"
+  },
+  "102_Zhang_2016.pdf": {
+    "title": "Submillisecond X-ray photon correlation spectroscopy\u00a0from a pixel array detector with fast\u00a0dual gating and no readout dead-time",
+    "journal": "Journal of Synchrotron Radiation",
+    "year": 2016,
+    "authors": [
+      "Qingteng Zhang",
+      "Eric M. Dufresne",
+      "Pawel Grybos",
+      "Piotr Kmon",
+      "Piotr Maj",
+      "Suresh Narayanan",
+      "Grzegorz W. Deptuch",
+      "Robert Szczygiel",
+      "Alec Sandy"
+    ],
+    "doi": "10.1107/S1600577516005166",
+    "url": "https://doi.org/10.1107/S1600577516005166"
+  },
+  "103_Grybos_2016.pdf": {
+    "title": "32k Channel Readout IC for Single Photon Counting Pixel Detectors with Pitch, Dead Time of 85 ns, Offset Spread and 2% rms Gain Spread",
+    "journal": "IEEE Transactions on Nuclear Science",
+    "year": 2016,
+    "authors": [
+      "P. Grybos",
+      "P. Kmon",
+      "P. Maj",
+      "R. Szczygiel"
+    ],
+    "doi": "10.1109/TNS.2016.2523260",
+    "url": "https://doi.org/10.1109/TNS.2016.2523260"
+  },
+  "104_Zhang_2017.pdf": {
+    "title": "Dynamic scaling of colloidal gel formation at intermediate concentrations",
+    "journal": "Physical Review Letters",
+    "year": 2017,
+    "authors": [
+      "Q. Zhang",
+      "D. Bahadur",
+      "E. M. Dufresne",
+      "P. Grybos",
+      "P. Kmon"
+    ],
+    "doi": "10.1103/PhysRevLett.119.178006",
+    "url": "https://doi.org/10.1103/PhysRevLett.119.178006"
+  },
+  "105_Ramakrishnan_2004.pdf": {
+    "title": "Elasticity and clustering in concentrated depletion gels",
+    "journal": "Physical Review E",
+    "year": 2004,
+    "authors": [
+      "S. Ramakrishnan",
+      "Y.-L. Chen",
+      "K. S. Schweizer",
+      "C. F. Zukoski"
+    ],
+    "doi": "10.1103/PhysRevE.70.040401",
+    "url": "https://doi.org/10.1103/PhysRevE.70.040401"
+  },
+  "106_Zia_2014.pdf": {
+    "title": "A micro-mechanical study of coarsening and rheology of colloidal gels: Cage building, cage hopping, and Smoluchowski's ratchet",
+    "journal": "Journal of Rheology",
+    "year": 2014,
+    "authors": [
+      "Roseanna N. Zia",
+      "Benjamin J. Landrum",
+      "William B. Russel"
+    ],
+    "doi": "10.1122/1.4892115",
+    "url": "https://doi.org/10.1122/1.4892115"
+  },
+  "107_Varga_2015.pdf": {
+    "title": "The hydrodynamics of colloidal gelation",
+    "journal": "Soft Matter",
+    "year": 2015,
+    "authors": [
+      "Zsigmond Varga",
+      "Gang Wang",
+      "James Swan"
+    ],
+    "doi": "10.1039/C5SM01414J",
+    "url": "https://doi.org/10.1039/C5SM01414J"
+  },
+  "108_Ulvestad_2015.pdf": {
+    "title": "Topological defect dynamics in operando battery nanoparticles",
+    "journal": "Science",
+    "year": 2015,
+    "authors": [
+      "A. Ulvestad",
+      "A. Singer",
+      "J. N. Clark",
+      "H. M. Cho",
+      "J. W. Kim"
+    ],
+    "doi": "10.1126/science.aaa1313",
+    "url": "https://doi.org/10.1126/science.aaa1313"
+  },
+  "109_Pierce_2003.pdf": {
+    "title": "Quasistatic X-Ray Speckle Metrology of Microscopic Magnetic Return-Point Memory",
+    "journal": "Physical Review Letters",
+    "year": 2003,
+    "authors": [
+      "Michael S. Pierce",
+      "Rob G. Moore",
+      "Larry B. Sorensen",
+      "Stephen D. Kevan",
+      "Olav Hellwig",
+      "Eric E. Fullerton",
+      "Jeffrey B. Kortright"
+    ],
+    "doi": "10.1103/PhysRevLett.90.175502",
+    "url": "https://doi.org/10.1103/PhysRevLett.90.175502"
+  },
+  "110_Rogers_2014.pdf": {
+    "title": "Echoes in x-ray speckles track nanometer-scale plastic events in colloidal gels under shear",
+    "journal": "Physical Review E",
+    "year": 2014,
+    "authors": [
+      "Michael C. Rogers",
+      "Kui Chen",
+      "Lukasz Andrzejewski",
+      "Suresh Narayanan",
+      "Subramanian Ramakrishnan",
+      "Robert L. Leheny",
+      "James L. Harden"
+    ],
+    "doi": "10.1103/PhysRevE.90.062310",
+    "url": "https://doi.org/10.1103/PhysRevE.90.062310"
+  },
+  "111_Ruta_2013.pdf": {
+    "title": "Compressed correlation functions and fast aging dynamics in metallic glasses",
+    "journal": "The Journal of Chemical Physics",
+    "year": 2013,
+    "authors": [
+      "B. Ruta",
+      "G. Baldi",
+      "G. Monaco",
+      "Y. Chushkin"
+    ],
+    "doi": "10.1063/1.4790131",
+    "url": "https://doi.org/10.1063/1.4790131"
+  },
+  "112_Evenson_2017.pdf": {
+    "title": "Comparing the atomic and macroscopic aging dynamics in an amorphous and partially crystalline Zr<sub>44</sub>Ti<sub>11</sub>Ni<sub>10</sub>Cu<sub>10</sub>Be<sub>25</sub>bulk metallic glass",
+    "journal": "Journal of Materials Research",
+    "year": 2017,
+    "authors": [
+      "Zach Evenson",
+      "Alba Payes-Playa",
+      "Yuriy Chushkin",
+      "Marco di Michiel",
+      "Eloi Pineda",
+      "Beatrice Ruta"
+    ],
+    "doi": "10.1557/jmr.2017.187",
+    "url": "https://doi.org/10.1557/jmr.2017.187"
+  },
+  "113_Eriksson_2014.pdf": {
+    "title": "Diffraction-limited storage rings \u2013 a window to the science of tomorrow",
+    "journal": "Journal of Synchrotron Radiation",
+    "year": 2014,
+    "authors": [
+      "Mikael Eriksson",
+      "J. Friso van der Veen",
+      "Christoph Quitmann"
+    ],
+    "doi": "10.1107/S1600577514019286",
+    "url": "https://doi.org/10.1107/S1600577514019286"
+  },
+  "114_Hettel_2014.pdf": {
+    "title": "DLSR design and plans: an international overview",
+    "journal": "Journal of Synchrotron Radiation",
+    "year": 2014,
+    "authors": [
+      "Robert Hettel"
+    ],
+    "doi": "10.1107/S1600577514011515",
+    "url": "https://doi.org/10.1107/S1600577514011515"
+  }
+}

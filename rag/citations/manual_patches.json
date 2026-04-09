@@ -1,0 +1,214 @@
+{
+  "002_Gr_2008.pdf": {
+    "title": "X-ray photon correlation spectroscopy (XPCS)",
+    "journal": "Soft Matter Characterization",
+    "year": 2008,
+    "authors": ["Gerhard Grübel", "Anders Madsen", "Abdellatif Robert"],
+    "doi": "10.1007/978-1-4020-4465-6_18",
+    "url": "https://doi.org/10.1007/978-1-4020-4465-6_18"
+  },
+  "007_Sutton_1991.pdf": {
+    "title": "Observation of speckle by diffraction with coherent X-rays",
+    "journal": "Nature",
+    "year": 1991,
+    "authors": ["Mark Sutton", "S. G. J. Mochrie", "T. Greytak", "S. E. Nagler", "L. E. Berman"],
+    "doi": "10.1038/352608a0",
+    "url": "https://doi.org/10.1038/352608a0"
+  },
+  "009_Born_1980.pdf": {
+    "title": "Principles of Optics: Electromagnetic Theory of Propagation, Interference and Diffraction of Light",
+    "journal": "Pergamon Press",
+    "year": 1980,
+    "authors": ["Max Born", "Emil Wolf"],
+    "doi": "",
+    "url": ""
+  },
+  "010_Goodman_1985.pdf": {
+    "title": "Statistical Optics",
+    "journal": "Wiley",
+    "year": 1985,
+    "authors": ["Joseph W. Goodman"],
+    "doi": "",
+    "url": ""
+  },
+  "012_Sandy_1999.pdf": {
+    "title": "Design and characterization of an undulator beamline optimized for small-angle coherent X-ray scattering at the Advanced Photon Source",
+    "journal": "Journal of Synchrotron Radiation",
+    "year": 1999,
+    "authors": ["A. R. Sandy", "L. B. Lurio", "S. G. J. Mochrie", "A. Malik", "G. B. Stephenson"],
+    "doi": "10.1107/S0909049599008140",
+    "url": "https://doi.org/10.1107/S0909049599008140"
+  },
+  "057_Byrne_2008.pdf": {
+    "title": "Bulk metallic glasses",
+    "journal": "Science",
+    "year": 2008,
+    "authors": ["C. J. Byrne", "M. Eldrup"],
+    "doi": "10.1126/science.1158275",
+    "url": "https://doi.org/10.1126/science.1158275"
+  },
+  "058_Martinez_2001.pdf": {
+    "title": "A thermodynamic connection to the fragility of glass-forming liquids",
+    "journal": "Nature",
+    "year": 2001,
+    "authors": ["L-M. Martinez", "C. A. Angell"],
+    "doi": "10.1038/35069035",
+    "url": "https://doi.org/10.1038/35069035"
+  },
+  "059_Berthier_2005.pdf": {
+    "title": "Direct experimental evidence of a growing length scale accompanying the glass transition",
+    "journal": "Science",
+    "year": 2005,
+    "authors": ["Ludovic Berthier", "Giulio Biroli", "Jean-Philippe Bouchaud", "Luca Cipelletti"],
+    "doi": "10.1126/science.1120714",
+    "url": "https://doi.org/10.1126/science.1120714"
+  },
+  "059_Berthier_2005_old.pdf": {
+    "SKIP": true,
+    "note": "Duplicate old version of 059_Berthier_2005.pdf — exclude from Qdrant updates"
+  },
+  "063_Evenson_2015.pdf": {
+    "title": "X-ray photon correlation spectroscopy reveals intermittent aging dynamics in a metallic glass",
+    "journal": "Physical Review Letters",
+    "year": 2015,
+    "authors": ["Z. Evenson", "B. Ruta", "S. Hechler", "M. Stolpe", "E. Pineda"],
+    "doi": "10.1103/PhysRevLett.115.175701",
+    "url": "https://doi.org/10.1103/PhysRevLett.115.175701"
+  },
+  "064_Thurn_1996.pdf": {
+    "title": "Photon correlation spectroscopy of colloidal palladium using a coherent X-ray beam",
+    "journal": "Physical Review Letters",
+    "year": 1996,
+    "authors": ["T. Thurn-Albrecht", "W. Steffen", "A. Patkowski", "G. Meier", "E. W. Fischer"],
+    "doi": "10.1103/PhysRevLett.77.5437",
+    "url": "https://doi.org/10.1103/PhysRevLett.77.5437"
+  },
+  "065_Lal_2001.pdf": {
+    "title": "Dynamics and correlations in magnetic colloidal systems studied by X-ray photon correlation spectroscopy",
+    "journal": "European Physical Journal E",
+    "year": 2001,
+    "authors": ["J. Lal", "D. Abernathy", "L. Auvray", "O. Diat", "G. Grübel"],
+    "doi": "10.1007/s101890170116",
+    "url": "https://doi.org/10.1007/s101890170116"
+  },
+  "066_Autenrieth_2007.pdf": {
+    "title": "The dynamic behavior of magnetic colloids in suspension",
+    "journal": "Journal of Applied Crystallography",
+    "year": 2007,
+    "authors": ["T. Autenrieth", "A. Robert", "J. Wagner", "G. Grübel"],
+    "doi": "10.1107/S0021889807001859",
+    "url": "https://doi.org/10.1107/S0021889807001859"
+  },
+  "068_Trappe_2007.pdf": {
+    "title": "Investigation of q-dependent dynamical heterogeneity in a colloidal gel by X-ray photon correlation spectroscopy",
+    "journal": "Physical Review E",
+    "year": 2007,
+    "authors": ["V. Trappe", "E. Pitard", "L. Ramos", "A. Robert", "H. Bissig", "L. Cipelletti"],
+    "doi": "10.1103/PhysRevE.76.051404",
+    "url": "https://doi.org/10.1103/PhysRevE.76.051404"
+  },
+  "073_Orsi_2012.pdf": {
+    "title": "Dynamics in dense hard-sphere colloidal suspensions",
+    "journal": "Physical Review E",
+    "year": 2012,
+    "authors": ["D. Orsi", "A. Fluerasu", "A. Moussaid", "F. Zontone", "L. Cristofolini", "A. Madsen"],
+    "doi": "10.1103/PhysRevE.85.011402",
+    "url": "https://doi.org/10.1103/PhysRevE.85.011402"
+  },
+  "080_Pusey_1991.pdf": {
+    "title": "Colloidal suspensions",
+    "journal": "Liquids, Freezing and the Glass Transition",
+    "year": 1991,
+    "authors": ["P. N. Pusey"],
+    "doi": "",
+    "url": ""
+  },
+  "081_deGennes_1979.pdf": {
+    "title": "Scaling Concepts in Polymer Physics",
+    "journal": "Cornell University Press",
+    "year": 1979,
+    "authors": ["Pierre-Gilles de Gennes"],
+    "doi": "",
+    "url": ""
+  },
+  "083_Lumma_2000.pdf": {
+    "title": "Structure and dynamics of concentrated dispersions of polystyrene latex spheres in glycerol: static and dynamic X-ray scattering",
+    "journal": "Physical Review E",
+    "year": 2000,
+    "authors": ["D. Lumma", "L. B. Lurio", "M. A. Borthwick", "P. Falus", "S. G. J. Mochrie"],
+    "doi": "10.1103/PhysRevE.62.8258",
+    "url": "https://doi.org/10.1103/PhysRevE.62.8258"
+  },
+  "084_Beysens_1999.pdf": {
+    "title": "Wetting-induced aggregation of colloids",
+    "journal": "Journal of Statistical Physics",
+    "year": 1999,
+    "authors": ["D. Beysens", "T. Narayanan"],
+    "doi": "10.1023/A:1004506601807",
+    "url": "https://doi.org/10.1023/A:1004506601807"
+  },
+  "090_Cipelletti_2000.pdf": {
+    "title": "Universal aging features in the restructuring of fractal colloidal gels",
+    "journal": "Physical Review Letters",
+    "year": 2000,
+    "authors": ["L. Cipelletti", "S. Manley", "R. C. Ball", "D. A. Weitz"],
+    "doi": "10.1103/PhysRevLett.84.2275",
+    "url": "https://doi.org/10.1103/PhysRevLett.84.2275"
+  },
+  "091_Bouchaud_2001.pdf": {
+    "title": "Anomalous dynamical light scattering in soft glassy gels",
+    "journal": "European Physical Journal E",
+    "year": 2001,
+    "authors": ["J. P. Bouchaud", "E. Pitard"],
+    "doi": "10.1007/s101890170030",
+    "url": "https://doi.org/10.1007/s101890170030"
+  },
+  "094_Evans_2002.pdf": {
+    "title": "X-ray microdiffraction images of antiferromagnetic domain evolution in chromium",
+    "journal": "Science",
+    "year": 2002,
+    "authors": ["P. G. Evans", "E. D. Isaacs", "G. Aeppli", "Z. Cai", "B. Lai"],
+    "doi": "10.1126/science.1068870",
+    "url": "https://doi.org/10.1126/science.1068870"
+  },
+  "096_Parkin_2008.pdf": {
+    "title": "Magnetic domain-wall racetrack memory",
+    "journal": "Science",
+    "year": 2008,
+    "authors": ["S. S. P. Parkin", "M. Hayashi", "L. Thomas"],
+    "doi": "10.1126/science.1145799",
+    "url": "https://doi.org/10.1126/science.1145799"
+  },
+  "097_Allwood_2005.pdf": {
+    "title": "Magnetic domain-wall logic",
+    "journal": "Science",
+    "year": 2005,
+    "authors": ["D. A. Allwood", "G. Xiong", "C. C. Faulkner", "D. Atkinson", "D. Petit", "R. P. Cowburn"],
+    "doi": "10.1126/science.1108813",
+    "url": "https://doi.org/10.1126/science.1108813"
+  },
+  "098_Malik_1998.pdf": {
+    "title": "Coherent X-ray study of fluctuations during domain coarsening",
+    "journal": "Physical Review Letters",
+    "year": 1998,
+    "authors": ["A. Malik", "A. R. Sandy", "L. B. Lurio", "G. B. Stephenson", "S. G. J. Mochrie"],
+    "doi": "10.1103/PhysRevLett.81.5832",
+    "url": "https://doi.org/10.1103/PhysRevLett.81.5832"
+  },
+  "104_Zhang_2017.pdf": {
+    "title": "Dynamic scaling of colloidal gel formation at intermediate concentrations",
+    "journal": "Physical Review Letters",
+    "year": 2017,
+    "authors": ["Q. Zhang", "D. Bahadur", "E. M. Dufresne", "P. Grybos", "P. Kmon"],
+    "doi": "10.1103/PhysRevLett.119.178006",
+    "url": "https://doi.org/10.1103/PhysRevLett.119.178006"
+  },
+  "108_Ulvestad_2015.pdf": {
+    "title": "Topological defect dynamics in operando battery nanoparticles",
+    "journal": "Science",
+    "year": 2015,
+    "authors": ["A. Ulvestad", "A. Singer", "J. N. Clark", "H. M. Cho", "J. W. Kim"],
+    "doi": "10.1126/science.aaa1313",
+    "url": "https://doi.org/10.1126/science.aaa1313"
+  }
+}

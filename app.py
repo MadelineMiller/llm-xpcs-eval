@@ -1,10 +1,16 @@
-import chainlit as cl
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from qdrant_client import QdrantClient
-from dotenv import load_dotenv
+from admin import launch_admin
+launch_admin()
+
 import os
 import requests
+
+import chainlit as cl
+from dotenv import load_dotenv
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from qdrant_client import QdrantClient
+
 from config import RETRIEVAL_CONFIG, LLM_CONFIG
+
 
 # ============================================================================
 # DEMO HELPER FUNCTIONS
@@ -26,7 +32,6 @@ def clean_title(title):
 def format_sources_with_scores(results):
     """Format sources with full citation metadata"""
     sources_text = "**Sources consulted:**\n\n"
-
 
     seen = set()
 
@@ -53,19 +58,21 @@ def format_sources_with_scores(results):
         else:
             author_str = ""
 
-        # meta line: authors · journal · year · page
-        meta_parts = [x for x in [author_str, journal, str(year) if year else "", f"p. {page}"] if x]
-        meta_str   = " · ".join(meta_parts)
-
-        # doi line
-        doi_str = f"DOI: [{doi}]({url})" if doi and url else ""
-
         # build entry
         sources_text += "---\n"
         sources_text += f"**{title}**  \n"
-        sources_text += f"{meta_str}  \n"
-        if doi_str:
-            sources_text += f"{doi_str}\n"
+
+        if author_str:
+            sources_text += f"**Author(s):** {author_str}  \n"
+        if journal:
+            sources_text += f"**Journal:** {journal}  \n"
+        if year:
+            sources_text += f"**Year:** {year}  \n"
+        if page:
+            sources_text += f"**Page:** {page}  \n"
+        if doi and url:
+            sources_text += f"**DOI:** [{doi}]({url})  \n"
+
         sources_text += "\n"
 
     return sources_text
@@ -106,11 +113,15 @@ def call_argo_llm(messages):
         "model": LLM_CONFIG['model'],
         "messages": messages,
         "temperature": LLM_CONFIG['temperature'],
+        "top_p": LLM_CONFIG['top_p'],
         "max_tokens": LLM_CONFIG['max_tokens']
     }
     
     try:
         response = requests.post(ARGO_API_URL, json=payload, timeout=60)
+        if not response.ok:
+            print(f"Argo API Error {response.status_code}: {response.text}")
+            return f"API Error {response.status_code}: {response.text}"
         response.raise_for_status()
         result = response.json()
         
@@ -160,6 +171,7 @@ def auth_callback(username: str, password: str):
 
 @cl.on_chat_start
 async def start():
+
     cl.user_session.set("conversation_history", [])
     
     # UPDATED SYSTEM PROMPT - More explicit instructions
@@ -252,11 +264,17 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "- Check feasibility of testing your hypothesis against 8-ID's resources and capabilities\n\n"
             "📚 My answers are based on XPCS research papers and textbooks.\n\n"
             "💡 I'll cite sources so you can verify and explore further."
+            "---\n\n"
+             "⚙️ **Admin:** [Manage document weights](http://localhost:8001)"
+
     ).send()
 
 
 @cl.on_message
 async def main(message: cl.Message):
+
+    # ---- XPCS Assistant profile ----
+
     msg = cl.Message(content="🔍 Searching XPCS literature and generating answer...")
     await msg.send()
     
@@ -273,7 +291,7 @@ async def main(message: cl.Message):
         
         query_lower = query.lower()
         for key, expansion in expansions.items():
-            if key in query_lower:
+            if key in query_lower: 
                 return f"{query} {expansion}"
         
         return query
@@ -475,3 +493,5 @@ async def on_show_context(action):
         context_display += "-"*80 + "\n\n"
     
     await cl.Message(content=context_display).send()
+
+

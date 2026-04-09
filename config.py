@@ -17,15 +17,9 @@ RETRIEVAL_CONFIG = {
 
 # LLM Configuration
 LLM_CONFIG = {
-    # Argo model to use
-    'model': 'gpt4o',
-    
-    # Temperature (0-2): Higher = more creative, Lower = more focused
+    'model': 'claudeopus41',
     'temperature': 0.7,
-    
-    # Max tokens in response
-    'max_tokens': 2000,
-    
-    # Number of conversation turns to remember (each turn = 1 Q&A pair)
+    'top_p': 0.9,
+    'max_tokens': 2000,        # Anthropic models use max_tokens
     'conversation_memory': 5,
 }
