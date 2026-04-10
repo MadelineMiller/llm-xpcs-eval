@@ -5,7 +5,7 @@ import re
 import html as html_lib
 import uuid
 import tempfile
-from fastapi import FastAPI, Request, UploadFile, File
+from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
 from weights_manager import load_weights, save_weights, get_all_docs
@@ -15,6 +15,65 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from langchain_community.document_loaders import PyPDFLoader
+
+import requests as http_requests  # rename to avoid conflict with FastAPI Request
+
+def lookup_crossref_metadata(title: str) -> dict:
+    """Try to find paper metadata from CrossRef using the title."""
+    try:
+        resp = http_requests.get(
+            "https://api.crossref.org/works",
+            params={"query.title": title, "rows": 1},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            return {}
+
+        items = resp.json().get("message", {}).get("items", [])
+        if not items:
+            return {}
+
+        item = items[0]
+
+        # Extract authors
+        authors = []
+        for author in item.get("author", []):
+            name = f"{author.get('given', '')} {author.get('family', '')}".strip()
+            if name:
+                authors.append(name)
+
+        # Extract journal
+        journal = ""
+        containers = item.get("container-title", [])
+        if containers:
+            journal = containers[0]
+
+        # Extract year
+        year = ""
+        date_parts = item.get("published-print", item.get("published-online", {})).get("date-parts", [[]])
+        if date_parts and date_parts[0]:
+            year = str(date_parts[0][0])
+
+        # Extract DOI and URL
+        doi = item.get("DOI", "")
+        url = f"https://doi.org/{doi}" if doi else ""
+
+        # Extract title
+        titles = item.get("title", [])
+        found_title = titles[0] if titles else ""
+
+        return {
+            "title": found_title,
+            "authors": authors,
+            "journal": journal,
+            "year": year,
+            "doi": doi,
+            "url": url,
+        }
+
+    except Exception as e:
+        print(f"[CROSSREF] Lookup failed: {e}")
+        return {}
 
 
 def clean_title(title):
@@ -328,6 +387,19 @@ async def admin_page():
             transition: background 0.15s;
         }}
         .reset-btn:hover {{ background: #e53935; border-color: #e53935; color: white; }}
+        .title-input {{
+            width: 80%;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #333;
+            color: #e0e0e0;
+            outline: none;
+        }}
+        .title-input:focus {{
+            border-color: #2196f3;
+        }}
     </style>
 </head>
 <body>
@@ -350,12 +422,19 @@ async def admin_page():
         </label>
         <input type="file" id="fileInput" accept=".pdf" onchange="fileSelected()">
         <div class="selected-file" id="selectedFile"></div>
+        <div id="titleConfirmSection" style="display:none; margin-top:12px;">
+            <p style="color:#aaa; font-size:13px; margin-bottom:6px;">
+                <i class="fa-solid fa-pen"></i> Confirm or edit the publication title:
+            </p>
+            <input type="text" id="titleInput" class="title-input" placeholder="Publication title...">
+        </div>
         <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
         <br>
-        <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" disabled>
-            <i class="fa-solid fa-upload"></i> Upload &amp; Index
+        <button class="upload-btn" id="uploadBtn" onclick="uploadFile()" style="display:none">
+            <i class="fa-solid fa-upload"></i> Upload PDF
         </button>
     </div>
+
 
     <div class="search-wrapper">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -442,7 +521,7 @@ async def admin_page():
             document.getElementById('toastMsg').textContent = msg;
             toast.className = isError ? 'toast error' : 'toast';
             toast.style.display = 'block';
-            setTimeout(() => toast.style.display = 'none', 2000);
+            setTimeout(() => toast.style.display = 'none', 4000);
         }}
 
         function filterDocs() {{
@@ -501,16 +580,46 @@ async def admin_page():
             pendingDeleteSource = null;
         }}
 
-        function fileSelected() {{
+        async function fileSelected() {{
             const input = document.getElementById('fileInput');
             const label = document.getElementById('selectedFile');
             const btn   = document.getElementById('uploadBtn');
+            const titleSection = document.getElementById('titleConfirmSection');
+            const titleInput   = document.getElementById('titleInput');
+
             if (input.files.length > 0) {{
                 label.textContent = input.files[0].name;
-                btn.disabled = false;
+
+                // Send file to extract title
+                titleSection.style.display = 'block';
+                titleInput.value = 'Extracting title...';
+                titleInput.disabled = true;
+                btn.style.display = 'none';
+
+                const formData = new FormData();
+                formData.append('file', input.files[0]);
+
+                try {{
+                    const resp = await fetch('/extract-title', {{
+                        method: 'POST',
+                        body: formData
+                    }});
+                    const data = await resp.json();
+                    if (data.ok) {{
+                        titleInput.value = data.guessed_title;
+                    }} else {{
+                        titleInput.value = input.files[0].name.replace('.pdf', '').replace(/_/g, ' ');
+                    }}
+                }} catch (e) {{
+                    titleInput.value = input.files[0].name.replace('.pdf', '').replace(/_/g, ' ');
+                }}
+
+                titleInput.disabled = false;
+                btn.style.display = 'inline-block';
             }} else {{
                 label.textContent = '';
-                btn.disabled = true;
+                btn.style.display = 'none';
+                titleSection.style.display = 'none';
             }}
         }}
 
@@ -521,6 +630,7 @@ async def admin_page():
             const btn  = document.getElementById('uploadBtn');
             const bar  = document.getElementById('progressBar');
             const fill = document.getElementById('progressFill');
+            const titleInput = document.getElementById('titleInput');
 
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Indexing...';
@@ -529,6 +639,7 @@ async def admin_page():
 
             const formData = new FormData();
             formData.append('file', input.files[0]);
+            formData.append('title', titleInput.value);
 
             try {{
                 fill.style.width = '60%';
@@ -543,7 +654,7 @@ async def admin_page():
                 if (data.ok) {{
                     fill.style.width = '100%';
                     showToast('Added ' + data.filename + ' (' + data.chunks + ' chunks)', false);
-                    setTimeout(() => location.reload(), 1000);
+                    setTimeout(function() {{ location.reload(); }}, 3000);
                 }} else {{
                     showToast('Error: ' + (data.error || 'unknown'), true);
                 }}
@@ -552,8 +663,8 @@ async def admin_page():
             }}
 
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload &amp; Index';
-            setTimeout(() => {{
+            btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload PDF';
+            setTimeout(function() {{
                 bar.style.display = 'none';
                 fill.style.width = '0%';
             }}, 1500);
@@ -681,21 +792,68 @@ async def delete_doc(request: Request):
         print(f"[DELETE ERROR] {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
-
-@admin_app.post("/upload-doc")
-async def upload_doc(file: UploadFile = File(...)):
-    """Upload a PDF, split into chunks, embed, and add to Qdrant."""
+@admin_app.post("/extract-title")
+async def extract_title(file: UploadFile = File(...)):
+    """Extract a guessed title from the first page of a PDF."""
     try:
-        if not file.filename.endswith('.pdf'):
-            return JSONResponse(status_code=400, content={"ok": False, "error": "Only PDF files are supported"})
-
-        # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
 
-        # Load and split
+        loader = PyPDFLoader(tmp_path)
+        pages = loader.load()
+        os.unlink(tmp_path)
+
+        skip_words = [
+            "research papers", "research article", "original article",
+            "full paper", "short communication", "letter", "review",
+            "open access", "crossmark", "downloaded from", "published by",
+            "copyright", "all rights reserved", "doi:", "http",
+            "volume", "issue", "pages", "received", "accepted",
+            "correspondence", "e-mail", "abstract", "introduction",
+            "keywords", "contents lists", "journal of", "acta",
+            "edited by", "editor", "university of", "department of",
+            "manuscript", "submitted", "revised", "available online",
+            "elsevier", "springer", "wiley", "nature", "science",
+            "orcid", "author contributions", "funding", "acknowledgment",
+            "supplementary", "supporting information", "table of contents",
+            "issn", "printed in", "published online", "article in press",
+        ]
+
+        guessed_title = file.filename.replace(".pdf", "").replace("_", " ").replace("-", " ")
+
+        if pages and len(pages[0].page_content) > 50:
+            first_lines = pages[0].page_content[:500].split("\n")
+            for line in first_lines:
+                cleaned = line.strip()
+                if len(cleaned) < 20:
+                    continue
+                if any(skip in cleaned.lower() for skip in skip_words):
+                    continue
+                if "@" in cleaned or "http" in cleaned:
+                    continue
+                guessed_title = cleaned[:200]
+                break
+
+        return {"ok": True, "guessed_title": guessed_title}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+@admin_app.post("/upload-doc")
+async def upload_doc(file: UploadFile = File(...), title: str = Form("")):
+    """Upload a PDF, split into chunks, embed, and add to Qdrant."""
+    try:
+        if not file.filename.endswith('.pdf'):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Only PDF files are supported"})
+
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
         loader = PyPDFLoader(tmp_path)
         pages = loader.load()
 
@@ -705,7 +863,39 @@ async def upload_doc(file: UploadFile = File(...)):
         )
         chunks = splitter.split_documents(pages)
 
-        # Embed and upload to Qdrant
+        # Use the user-confirmed title for CrossRef lookup
+        search_title = title.strip() if title.strip() else file.filename.replace(".pdf", "").replace("_", " ")
+
+        print(f"[CROSSREF] Looking up: {search_title[:100]}...")
+        metadata = lookup_crossref_metadata(search_title)
+
+        # Verify CrossRef result relevance
+        if metadata.get("title"):
+            found_lower = metadata["title"].lower()
+            search_lower = search_title.lower()
+            search_words = set(search_lower.split())
+            found_words = set(found_lower.split())
+            overlap = search_words & found_words
+            min_overlap = max(3, len(search_words) * 0.3)
+            if len(overlap) < min_overlap:
+                print(f"[CROSSREF] Poor match — ignoring")
+                metadata = {}
+
+        doc_title = metadata.get("title") or search_title
+        doc_authors = metadata.get("authors", [])
+        doc_journal = metadata.get("journal", "")
+        doc_year = metadata.get("year", "")
+        doc_doi = metadata.get("doi", "")
+        doc_url = metadata.get("url", "")
+
+        if metadata.get("title"):
+            print(f"[CROSSREF] Found: {doc_title}")
+            print(f"           Authors: {doc_authors}")
+            print(f"           Journal: {doc_journal} ({doc_year})")
+            print(f"           DOI: {doc_doi}")
+        else:
+            print(f"[CROSSREF] No match found, using provided title")
+
         points = []
         for i, chunk in enumerate(chunks):
             vector = embeddings.embed_query(chunk.page_content)
@@ -716,19 +906,18 @@ async def upload_doc(file: UploadFile = File(...)):
                     vector=vector,
                     payload={
                         "source": file.filename,
-                        "title": file.filename.replace(".pdf", "").replace("_", " "),
+                        "title": doc_title,
                         "text": chunk.page_content,
                         "page": chunk.metadata.get("page", 0),
-                        "authors": [],
-                        "journal": "",
-                        "year": "",
-                        "doi": "",
-                        "url": "",
+                        "authors": doc_authors,
+                        "journal": doc_journal,
+                        "year": doc_year,
+                        "doi": doc_doi,
+                        "url": doc_url,
                     }
                 )
             )
 
-        # Batch upload
         BATCH_SIZE = 50
         for i in range(0, len(points), BATCH_SIZE):
             client.upsert(
@@ -736,7 +925,6 @@ async def upload_doc(file: UploadFile = File(...)):
                 points=points[i:i + BATCH_SIZE]
             )
 
-        # Clean up temp file
         os.unlink(tmp_path)
 
         print(f"[UPLOAD] Added {file.filename}: {len(chunks)} chunks")
@@ -745,6 +933,9 @@ async def upload_doc(file: UploadFile = File(...)):
     except Exception as e:
         print(f"[UPLOAD ERROR] {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+
 
 
 def start_admin_server():
