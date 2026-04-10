@@ -51,19 +51,22 @@ def get_all_docs(client: QdrantClient, collection_name: str) -> list[dict]:
     return sorted(docs, key=lambda x: x["title"].lower())
 
 def apply_weights(results, weights: dict) -> list:
-    """Re-sort results by similarity score × normalized weight."""
+    """Sort results by weight (primary) then similarity (secondary)."""
     scored = []
     for result in results:
         source     = os.path.basename(result.payload.get("source", ""))
         raw_weight = weights.get(source, 50)
-        multiplier = raw_weight / 50          # 50→1.0x, 100→2.0x, 10→0.2x
-        weighted_score = result.score * multiplier
+
+        # Weight 0 = exclude entirely
+        if raw_weight == 0:
+            print(f"  [WEIGHT] {source}: EXCLUDED (weight=0)")
+            continue
 
         print(f"  [WEIGHT] {source}: "
-              f"score={result.score:.4f} × {multiplier:.2f} "
-              f"(weight={raw_weight}/100) = {weighted_score:.4f}")
+              f"similarity={result.score:.4f} | weight={raw_weight}/100")
 
-        scored.append((weighted_score, result))
+        scored.append((raw_weight, result.score, result))
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [r for _, r in scored]
+    # Sort by weight descending, then similarity descending as tiebreaker
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [r for _, _, r in scored]

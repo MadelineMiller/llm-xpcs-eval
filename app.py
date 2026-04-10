@@ -11,6 +11,9 @@ from qdrant_client import QdrantClient
 
 from config import RETRIEVAL_CONFIG, LLM_CONFIG
 
+from weights_manager import load_weights, save_weights, get_all_docs, apply_weights
+
+
 
 # ============================================================================
 # DEMO HELPER FUNCTIONS
@@ -273,8 +276,6 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
 @cl.on_message
 async def main(message: cl.Message):
 
-    # ---- XPCS Assistant profile ----
-
     msg = cl.Message(content="🔍 Searching XPCS literature and generating answer...")
     await msg.send()
     
@@ -315,54 +316,62 @@ async def main(message: cl.Message):
             ]
         }
     )
+
+    current_weights = load_weights()
+
+    # Apply weights and re-sort by priority
+    reranked_points = apply_weights(results.points, current_weights)
+
     
     # DEBUG: Print all scores
     print(f"\n{'='*60}")
     print(f"Query: {message.content}")
-    print(f"Retrieved {len(results.points)} results:")
-    for idx, result in enumerate(results.points, 1):
-        print(f"  [{idx}] Score: {result.score:.4f} | {os.path.basename(result.payload['source'])}")
+    print(f"Retrieved {len(results.points)} results, {len(reranked_points)} after weight filter:")
+    for idx, result in enumerate(reranked_points, 1):
+        source = os.path.basename(result.payload['source'])
+        weight = current_weights.get(source, 50)
+        print(f"  [{idx}] Similarity: {result.score:.4f} | Weight: {weight}/100 | {source}")
     print(f"Threshold: {RETRIEVAL_CONFIG['relevance_threshold']}")
     print(f"{'='*60}\n")
-    
-    # UPDATED: Use adaptive threshold
-    # If top result is > 0.55, use it even if below configured threshold
+
+    # Adaptive threshold
     adaptive_threshold = min(
         RETRIEVAL_CONFIG['relevance_threshold'],
-        max(0.55, results.points[0].score - 0.05) if results.points else 0.6
+        max(0.55, reranked_points[0].score - 0.05) if reranked_points else 0.6
     )
-    
+
     print(f"Using adaptive threshold: {adaptive_threshold:.4f}")
-    
+
     context_parts = []
     sources = []
-    seen_titles = set()  # deduplicate chunks from the same paper
+    seen_titles = set()
 
-    
-    for idx, result in enumerate(results.points, 1):
+    for idx, result in enumerate(reranked_points, 1):
         if result.score < adaptive_threshold:
             continue
 
-        p    = result.payload
+        p = result.payload
         source = os.path.basename(p['source'])
-        page   = p['page']
-        text   = p['text']
+        page = p['page']
+        text = p['text']
+        title = p.get('title') or source
+        weight = current_weights.get(source, 50)
 
-        # use rich title for LLM context if available
-        title  = p.get('title') or source
-
-        context_parts.append(f"[Source {idx}: {title}, Page {page}]\n{text}")
+        context_parts.append(
+            f"[Source {idx}: {title}, Page {page}, Priority: {weight}/100]\n{text}"
+        )
         sources.append(f"[{idx}] {title} (Page {page})")
         seen_titles.add(title)
 
-    
     cl.user_session.set("last_context", context_parts)
-    cl.user_session.set("last_results", results.points[:len(sources)])
-    
-    # UPDATED: More explicit context message
+    cl.user_session.set("last_results", reranked_points[:len(sources)])
+
+    # Build context message for LLM
     if context_parts:
         context = "\n\n".join(context_parts)
         context_message = f"""CONTEXT FROM XPCS SCIENTIFIC LITERATURE:
+
+(Passages are ordered by source priority — earlier sources are from higher-priority documents.)
 
 {context}
 
@@ -375,11 +384,13 @@ USER QUESTION: {message.content}
 INSTRUCTIONS FOR YOUR RESPONSE:
 
 1. The passages above ARE relevant to the question - use them!
-2. Build your answer by synthesizing information from these passages
-3. Cite sources inline using [Source N] format
-4. Include any formulas or technical details from the passages
-5. If passages discuss related concepts (speckle, coherence, dynamics), explain how they relate to the question
-6. Use LaTeX for math: $inline$ or $$display$$
+2. Prioritize information from earlier sources — they are from higher-priority documents as rated by the beamline scientist
+3. When sources conflict, prefer the higher-priority (earlier) source
+4. Build your answer by synthesizing information from these passages
+5. Cite sources inline using [Source N] format
+6. Include any formulas or technical details from the passages
+7. If passages discuss related concepts (speckle, coherence, dynamics), explain how they relate to the question
+8. Use LaTeX for math: $inline$ or $$display$$
 
 DO NOT say "the literature doesn't provide information" - you have {len(context_parts)} relevant passages above!
 
@@ -415,7 +426,7 @@ Do NOT attempt to answer from general knowledge."""
     cl.user_session.set("conversation_history", conversation_history)
     
     # Format sources
-    sources_with_scores = format_sources_with_scores(results.points[:len(sources)])
+    sources_with_scores = format_sources_with_scores(reranked_points[:len(sources)])
     
     # Check if LLM acknowledged missing information or out of scope question
     missing_info_phrases = [
