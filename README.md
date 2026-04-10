@@ -51,7 +51,8 @@
 
 ## Tech Stack
 
-**Frontend:** Chainlit (web-based chat interface)
+**Frontend:** Built with [Chainlit](https://github.com/Chainlit/chainlit), an open-source framework for building conversational AI interfaces.
+
 
 **Backend:** Python 3.10
 

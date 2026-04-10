@@ -30,3 +30,96 @@ form {
     max-width: 400px !important;
     margin: 0 auto !important;
 }
+
+/* Override Chainlit primary color (Tailwind CSS variables) */
+:root,
+.dark,
+[data-theme="dark"],
+[class*="dark"] {
+    --primary: 33 150 243 !important;
+    --primary-foreground: 255 255 255 !important;
+}
+
+/* Fallback direct override for login button */
+.bg-primary {
+    background-color: rgb(33, 150, 243) !important;
+}
+
+.bg-primary:hover,
+.hover\:bg-primary\/90:hover {
+    background-color: rgb(30, 136, 229) !important;
+}
+
+.text-primary {
+    color: rgb(33, 150, 243) !important;
+}
+
+.text-primary-foreground {
+    color: rgb(255, 255, 255) !important;
+}
+
+.border-primary {
+    border-color: rgb(33, 150, 243) !important;
+}
+
+.ring-primary {
+    --tw-ring-color: rgb(33, 150, 243) !important;
+}
+
+/* Links */
+a {
+    color: #2196f3 !important;
+}
+
+/* Login button */
+button[type="submit"] {
+    background-color: #2196f3 !important;
+    border-color: #2196f3 !important;
+    color: white !important;
+}
+
+button[type="submit"]:hover {
+    background-color: #1e88e5 !important;
+}
+
+/* Login form input borders */
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+    border-color: #2196f3 !important;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.25) !important;
+    outline: none !important;
+}
+
+/* Also override the ring color used by Tailwind focus states */
+.ring-ring,
+.focus-visible\:ring-ring:focus-visible {
+    --tw-ring-color: rgb(33, 150, 243) !important;
+}
+
+.ring-offset-background {
+    --tw-ring-offset-color: #1a1a1a !important;
+}
+
+/* Replace user initial avatar with custom icon */
+span.bg-primary.text-primary-foreground.font-semibold {
+    font-size: 0 !important;
+    background-image: url('/public/ANL-triangle.png') !important;
+    background-size: 70% !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-color: transparent !important;
+}
+
+/* Hide the attach file button */
+button[id*="upload"],
+button[class*="attach"],
+button[class*="upload"],
+[class*="attachFile"],
+[class*="attach-file"] {
+    display: none !important;
+}
+
+
+
+

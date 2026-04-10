@@ -41,6 +41,7 @@ def format_sources_with_scores(results):
     sources_text = "**Sources consulted:**\n\n"
 
     seen = set()
+    num = 0
 
     for result in results:
         p = result.payload
@@ -56,6 +57,7 @@ def format_sources_with_scores(results):
         if title in seen:
             continue
         seen.add(title)
+        num += 1
 
         # author string
         if len(authors) > 2:
@@ -236,7 +238,7 @@ When you receive context passages from XPCS literature, you MUST use them to con
    - Combine information from multiple passages to build a complete answer
 
 2. **Citation Requirements:**
-   - Cite sources inline: "XPCS measures dynamics via speckle fluctuations [Source 3]"
+   - Cite sources inline by title: "XPCS measures dynamics via speckle fluctuations [Source: X-ray photon correlation spectroscopy]"
    - Include formulas exactly as written: $g^{(2)}(q,t) = \langle I(q,0)I(q,t) \rangle / \langle I(q) \rangle^2$
    - Quote key sentences when appropriate
 
@@ -301,13 +303,13 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
     cl.user_session.set("system_prompt", system_prompt)
     
     await cl.Message(
-        content="👋 **Welcome to the XPCS Hypothesis Evaluator!**\n\n"
+        content="**Welcome to the XPCS Hypothesis Evaluator!**\n\n"
             "I can help you map out and evaluate your XPCS experiment plan at beamline 8-ID.\n\n"
             "**My main functionalities are to help you:**\n"
             "- Formulate and refine your scientific hypothesis for XPCS experiments\n\n"
             "- Check feasibility of testing your hypothesis against 8-ID's resources and capabilities\n\n"
-            "📚 My answers are based on XPCS research papers and textbooks.\n\n"
-            "💡 I'll cite sources so you can verify and explore further."
+            "My answers are based on XPCS research papers and textbooks.\n\n"
+            "I'll cite sources so you can verify and explore further."
             "\n\n---\n\n"
             f"⚙️ **Admin:** [Manage document weights](http://localhost:8001?token={token})"
     ).send()
@@ -404,7 +406,7 @@ async def main(message: cl.Message):
         weight = current_weights.get(source, 50)
 
         context_parts.append(
-            f"[Source {idx}: {title}, Page {page}, Priority: {weight}/100]\n{text}"
+            f"[{title}, Page {page}, Priority: {weight}/100]\n{text}"
         )
         sources.append(f"[{idx}] {title} (Page {page})")
         seen_titles.add(title)
@@ -433,7 +435,7 @@ INSTRUCTIONS FOR YOUR RESPONSE:
 2. Prioritize information from earlier sources — they are from higher-priority documents as rated by the beamline scientist
 3. When sources conflict, prefer the higher-priority (earlier) source
 4. Build your answer by synthesizing information from these passages
-5. Cite sources inline using [Source N] format
+5. Cite sources inline using the document title in brackets, e.g. [Source: X-ray photon correlation spectroscopy]
 6. Include any formulas or technical details from the passages
 7. If passages discuss related concepts (speckle, coherence, dynamics), explain how they relate to the question
 8. Use LaTeX for math: $inline$ or $$display$$
@@ -534,21 +536,20 @@ async def on_show_context(action):
     """Handle the "Show Retrieved Context" button click"""
     context_parts = cl.user_session.get("last_context")
     results = cl.user_session.get("last_results")
-    
+
     if not context_parts:
         await cl.Message(
-            content="⚠️ No context available. Please ask a question first."
+            content="No context available. Please ask a question first."
         ).send()
         return
-    
-    context_display = "# 📄 Retrieved Context Passages\n\n"
-    context_display += "="*65+ "\n\n"
-    
-    for i, (part, result) in enumerate(zip(context_parts, results), 1):
-        context_display += f"## Source {i}\n\n"
-        context_display += f"{part}\n\n"
-        context_display += "-"*80 + "\n\n"
-    
-    await cl.Message(content=context_display).send()
 
+    context_display = "# Retrieved Context Passages\n\n"
+    context_display += "*These are the raw text chunks retrieved from the vector database that were used to generate the answer above.*\n\n"
+    context_display += "=" * 65 + "\n\n"
+
+    for part, result in zip(context_parts, results):
+        context_display += f"{part}\n\n"
+        context_display += "-" * 80 + "\n\n"
+
+    await cl.Message(content=context_display).send()
 
