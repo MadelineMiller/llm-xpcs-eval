@@ -267,7 +267,7 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "- Check feasibility of testing your hypothesis against 8-ID's resources and capabilities\n\n"
             "📚 My answers are based on XPCS research papers and textbooks.\n\n"
             "💡 I'll cite sources so you can verify and explore further."
-            "---\n\n"
+            "\n\n---\n\n"
              "⚙️ **Admin:** [Manage document weights](http://localhost:8001)"
 
     ).send()

@@ -400,6 +400,30 @@ async def admin_page():
         .title-input:focus {{
             border-color: #2196f3;
         }}
+                .edit-field {{
+            margin-bottom: 10px;
+        }}
+        .edit-field label {{
+            display: block;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }}
+        .edit-field input {{
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #333;
+            color: #e0e0e0;
+            outline: none;
+            box-sizing: border-box;
+        }}
+        .edit-field input:focus {{ border-color: #2196f3; }}
+        .btn-save {{ background: #2196f3; border-color: #2196f3; color: white; }}
+        .btn-save:hover {{ background: #1e88e5; }}
     </style>
 </head>
 <body>
@@ -438,7 +462,7 @@ async def admin_page():
 
     <div class="search-wrapper">
         <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" class="search-box" id="searchBox" placeholder="Search by title, author, or filename..." oninput="filterDocs()">
+        <input type="text" class="search-box" id="searchBox" placeholder="Search by title or author..." oninput="filterDocs()">
     </div>
 
     <p class="doc-count" id="docCount">{len(docs)} documents in database</p>
@@ -477,6 +501,41 @@ async def admin_page():
             <div class="confirm-btns">
                 <button class="btn-cancel" onclick="cancelReset()">Cancel</button>
                 <button class="btn-delete" onclick="confirmReset()"><i class="fa-solid fa-rotate-left"></i> Reset All</button>
+            </div>
+        </div>
+    </div>
+
+        <div class="confirm-overlay" id="metadataOverlay">
+        <div class="confirm-box" style="max-width:500px; text-align:left;">
+            <h3 style="color:#2196f3;"><i class="fa-solid fa-circle-info"></i> Metadata Not Found</h3>
+            <p style="color:#aaa; font-size:13px;">CrossRef couldn't find this paper. Please fill in the metadata manually.</p>
+            <div class="edit-field">
+                <label>Title</label>
+                <input type="text" id="metaTitle">
+            </div>
+            <div class="edit-field">
+                <label>Authors (comma separated)</label>
+                <input type="text" id="metaAuthors" placeholder="Jane Smith, John Doe">
+            </div>
+            <div class="edit-field">
+                <label>Journal</label>
+                <input type="text" id="metaJournal">
+            </div>
+            <div class="edit-field">
+                <label>Year</label>
+                <input type="text" id="metaYear">
+            </div>
+            <div class="edit-field">
+                <label>DOI</label>
+                <input type="text" id="metaDoi" placeholder="10.xxxx/xxxxx">
+            </div>
+            <div class="edit-field">
+                <label>URL</label>
+                <input type="text" id="metaUrl" placeholder="https://doi.org/...">
+            </div>
+            <div class="confirm-btns" style="margin-top:16px;">
+                <button class="btn-cancel" onclick="cancelMetadata()">Cancel</button>
+                <button class="btn-save" onclick="submitWithMetadata()"><i class="fa-solid fa-upload"></i> Upload</button>
             </div>
         </div>
     </div>
@@ -623,52 +682,127 @@ async def admin_page():
             }}
         }}
 
-        async function uploadFile() {{
-            const input = document.getElementById('fileInput');
-            if (!input.files.length) return;
+            async function uploadFile() {{
+                const input = document.getElementById('fileInput');
+                if (!input.files.length) return;
 
-            const btn  = document.getElementById('uploadBtn');
-            const bar  = document.getElementById('progressBar');
-            const fill = document.getElementById('progressFill');
-            const titleInput = document.getElementById('titleInput');
+                const btn  = document.getElementById('uploadBtn');
+                const bar  = document.getElementById('progressBar');
+                const fill = document.getElementById('progressFill');
+                const titleInput = document.getElementById('titleInput');
 
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Indexing...';
-            bar.style.display = 'block';
-            fill.style.width = '30%';
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Looking up metadata...';
+                bar.style.display = 'block';
+                fill.style.width = '30%';
 
-            const formData = new FormData();
-            formData.append('file', input.files[0]);
-            formData.append('title', titleInput.value);
+                const formData = new FormData();
+                formData.append('file', input.files[0]);
+                formData.append('title', titleInput.value);
 
-            try {{
-                fill.style.width = '60%';
-                const resp = await fetch('/upload-doc', {{
-                    method: 'POST',
-                    body: formData
-                }});
+                try {{
+                    fill.style.width = '60%';
+                    const resp = await fetch('/upload-doc', {{
+                        method: 'POST',
+                        body: formData
+                    }});
 
-                fill.style.width = '90%';
-                const data = await resp.json();
+                    fill.style.width = '90%';
+                    const data = await resp.json();
 
-                if (data.ok) {{
-                    fill.style.width = '100%';
-                    showToast('Added ' + data.filename + ' (' + data.chunks + ' chunks)', false);
-                    setTimeout(function() {{ location.reload(); }}, 3000);
-                }} else {{
-                    showToast('Error: ' + (data.error || 'unknown'), true);
+                    if (data.ok) {{
+                        fill.style.width = '100%';
+                        showToast('Added ' + data.filename + ' (' + data.chunks + ' chunks)', false);
+                        setTimeout(function() {{ location.reload(); }}, 3000);
+                    }} else if (data.needs_metadata) {{
+                        // CrossRef didn't find it — show metadata form
+                        fill.style.width = '0%';
+                        bar.style.display = 'none';
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload PDF';
+
+                        pendingUploadFile = input.files[0];
+                        document.getElementById('metaTitle').value = data.guessed_title || '';
+                        document.getElementById('metaAuthors').value = '';
+                        document.getElementById('metaJournal').value = '';
+                        document.getElementById('metaYear').value = '';
+                        document.getElementById('metaDoi').value = '';
+                        document.getElementById('metaUrl').value = '';
+                        document.getElementById('metadataOverlay').style.display = 'flex';
+                    }} else {{
+                        showToast('Error: ' + (data.error || 'unknown'), true);
+                    }}
+                }} catch (e) {{
+                    showToast('Upload failed: ' + e.message, true);
                 }}
-            }} catch (e) {{
-                showToast('Upload failed: ' + e.message, true);
+
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload PDF';
+                setTimeout(function() {{
+                    bar.style.display = 'none';
+                    fill.style.width = '0%';
+                }}, 1500);
             }}
 
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload PDF';
-            setTimeout(function() {{
-                bar.style.display = 'none';
-                fill.style.width = '0%';
-            }}, 1500);
-        }}
+            function cancelMetadata() {{
+                pendingUploadFile = null;
+                document.getElementById('metadataOverlay').style.display = 'none';
+            }}
+
+            async function submitWithMetadata() {{
+                if (!pendingUploadFile) return;
+
+                document.getElementById('metadataOverlay').style.display = 'none';
+
+                const btn  = document.getElementById('uploadBtn');
+                const bar  = document.getElementById('progressBar');
+                const fill = document.getElementById('progressFill');
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Indexing...';
+                bar.style.display = 'block';
+                fill.style.width = '30%';
+
+                const formData = new FormData();
+                formData.append('file', pendingUploadFile);
+                formData.append('title', document.getElementById('metaTitle').value);
+                formData.append('authors', document.getElementById('metaAuthors').value);
+                formData.append('journal', document.getElementById('metaJournal').value);
+                formData.append('year', document.getElementById('metaYear').value);
+                formData.append('doi', document.getElementById('metaDoi').value);
+                formData.append('url', document.getElementById('metaUrl').value);
+                formData.append('skip_crossref', 'true');
+
+                try {{
+                    fill.style.width = '60%';
+                    const resp = await fetch('/upload-doc', {{
+                        method: 'POST',
+                        body: formData
+                    }});
+
+                    fill.style.width = '90%';
+                    const data = await resp.json();
+
+                    if (data.ok) {{
+                        fill.style.width = '100%';
+                        showToast('Added ' + data.filename + ' (' + data.chunks + ' chunks)', false);
+                        setTimeout(function() {{ location.reload(); }}, 3000);
+                    }} else {{
+                        showToast('Error: ' + (data.error || 'unknown'), true);
+                    }}
+                }} catch (e) {{
+                    showToast('Upload failed: ' + e.message, true);
+                }}
+
+                pendingUploadFile = null;
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload PDF';
+                setTimeout(function() {{
+                    bar.style.display = 'none';
+                    fill.style.width = '0%';
+                }}, 1500);
+            }}
+
 
         const uploadSection = document.getElementById('uploadSection');
         uploadSection.addEventListener('dragover', (e) => {{
@@ -842,7 +976,16 @@ async def extract_title(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 @admin_app.post("/upload-doc")
-async def upload_doc(file: UploadFile = File(...), title: str = Form("")):
+async def upload_doc(
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    authors: str = Form(""),
+    journal: str = Form(""),
+    year: str = Form(""),
+    doi: str = Form(""),
+    url: str = Form(""),
+    skip_crossref: str = Form("false"),
+):
     """Upload a PDF, split into chunks, embed, and add to Qdrant."""
     try:
         if not file.filename.endswith('.pdf'):
@@ -863,38 +1006,49 @@ async def upload_doc(file: UploadFile = File(...), title: str = Form("")):
         )
         chunks = splitter.split_documents(pages)
 
-        # Use the user-confirmed title for CrossRef lookup
-        search_title = title.strip() if title.strip() else file.filename.replace(".pdf", "").replace("_", " ")
-
-        print(f"[CROSSREF] Looking up: {search_title[:100]}...")
-        metadata = lookup_crossref_metadata(search_title)
-
-        # Verify CrossRef result relevance
-        if metadata.get("title"):
-            found_lower = metadata["title"].lower()
-            search_lower = search_title.lower()
-            search_words = set(search_lower.split())
-            found_words = set(found_lower.split())
-            overlap = search_words & found_words
-            min_overlap = max(3, len(search_words) * 0.3)
-            if len(overlap) < min_overlap:
-                print(f"[CROSSREF] Poor match — ignoring")
-                metadata = {}
-
-        doc_title = metadata.get("title") or search_title
-        doc_authors = metadata.get("authors", [])
-        doc_journal = metadata.get("journal", "")
-        doc_year = metadata.get("year", "")
-        doc_doi = metadata.get("doi", "")
-        doc_url = metadata.get("url", "")
-
-        if metadata.get("title"):
-            print(f"[CROSSREF] Found: {doc_title}")
-            print(f"           Authors: {doc_authors}")
-            print(f"           Journal: {doc_journal} ({doc_year})")
-            print(f"           DOI: {doc_doi}")
+        # Use provided metadata directly if skip_crossref is true
+        if skip_crossref == "true":
+            doc_title = title.strip() or file.filename.replace(".pdf", "").replace("_", " ")
+            doc_authors = [a.strip() for a in authors.split(",") if a.strip()]
+            doc_journal = journal.strip()
+            doc_year = year.strip()
+            doc_doi = doi.strip()
+            doc_url = url.strip()
+            print(f"[UPLOAD] Using user-provided metadata for {file.filename}")
         else:
-            print(f"[CROSSREF] No match found, using provided title")
+            search_title = title.strip() if title.strip() else file.filename.replace(".pdf", "").replace("_", " ")
+            print(f"[CROSSREF] Looking up: {search_title[:100]}...")
+            metadata = lookup_crossref_metadata(search_title)
+
+            if metadata.get("title"):
+                found_lower = metadata["title"].lower()
+                search_lower = search_title.lower()
+                search_words = set(search_lower.split())
+                found_words = set(found_lower.split())
+                overlap = search_words & found_words
+                min_overlap = max(3, len(search_words) * 0.3)
+                if len(overlap) < min_overlap:
+                    print(f"[CROSSREF] Poor match — ignoring")
+                    metadata = {}
+
+            if metadata.get("title"):
+                doc_title = metadata["title"]
+                doc_authors = metadata.get("authors", [])
+                doc_journal = metadata.get("journal", "")
+                doc_year = metadata.get("year", "")
+                doc_doi = metadata.get("doi", "")
+                doc_url = metadata.get("url", "")
+                print(f"[CROSSREF] Found: {doc_title}")
+            else:
+                # No match — return to let user fill in metadata
+                os.unlink(tmp_path)
+                return {
+                    "ok": False,
+                    "needs_metadata": True,
+                    "filename": file.filename,
+                    "chunks_count": len(chunks),
+                    "guessed_title": search_title,
+                }
 
         points = []
         for i, chunk in enumerate(chunks):
@@ -933,8 +1087,6 @@ async def upload_doc(file: UploadFile = File(...), title: str = Form("")):
     except Exception as e:
         print(f"[UPLOAD ERROR] {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
-
-
 
 
 
