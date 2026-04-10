@@ -322,8 +322,8 @@ async def admin_page():
     <a class="back" href="http://localhost:8000"><i class="fa-solid fa-arrow-left"></i> Back to Chat</a>
     <h1><i class="fa-solid fa-book"></i> XPCS Document Manager</h1>
     <p class="subtitle">
-        Adjust each document's relevance weight.<br>
-        <strong>Higher weight = prioritized more when answering questions.</strong> Default is 50/100.
+        Adjust each document's relevance weight. (Default is 50/100) <br>
+        <strong>Higher weight = prioritized more when answering questions.</strong><br>
     </p>
 
     <div class="upload-section" id="uploadSection">
