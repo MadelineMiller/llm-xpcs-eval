@@ -1,0 +1,32 @@
+/* Hide Chainlit logo on login page */
+img[alt="logo"],
+img.logo {
+    display: none !important;
+}
+
+/* Only target the login page layout - look for the form element */
+body:has(form[class*="auth"]) #root > div:first-child,
+body:has(input[type="password"]:not(.message-input)) #root > div:first-child {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body:has(form[class*="auth"]) #root > div:first-child > div:last-child,
+body:has(input[type="password"]:not(.message-input)) #root > div:first-child > div:last-child {
+    display: none !important;
+}
+
+body:has(form[class*="auth"]) #root > div:first-child > div:first-child,
+body:has(input[type="password"]:not(.message-input)) #root > div:first-child > div:first-child {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 !important;
+}
+
+form {
+    max-width: 400px !important;
+    margin: 0 auto !important;
+}

@@ -13,6 +13,10 @@ from config import RETRIEVAL_CONFIG, LLM_CONFIG
 
 from weights_manager import load_weights, save_weights, get_all_docs, apply_weights
 
+import ldap
+
+import secrets
+from auth_tokens import admin_auth_tokens, add_token, remove_token
 
 
 # ============================================================================
@@ -87,6 +91,13 @@ def format_sources_with_scores(results):
 
 load_dotenv()
 
+# ldap
+
+LDAP_SERVER = os.getenv("LDAP_SERVER", "")
+LDAP_BASE_DN = os.getenv("LDAP_BASE_DN", "")
+LDAP_SERVICE_USER_DN = os.getenv("LDAP_SERVICE_USER_DN", "")
+LDAP_ADMIN_PASSWORD = os.getenv("LDAP_ADMIN_PASSWORD", "")
+
 print("Initializing XPCS Hypothesis Evaluator...")
 embeddings = HuggingFaceEmbeddings(
     model_name="allenai/scibert_scivocab_uncased",
@@ -142,38 +153,68 @@ def call_argo_llm(messages):
     except Exception as e:
         return f"Error calling Argo API: {str(e)}"
 
-@cl.password_auth_callback
-def auth_callback(username: str, password: str):
-    """
-    Password authentication using credentials from .env
-    """
-    # Get credentials from environment variables
-    tester_username = os.getenv("AUTH_TESTER_USERNAME", "tester")
-    tester_password = os.getenv("AUTH_TESTER_PASSWORD", "TestPass123!")
-    admin_username = os.getenv("AUTH_ADMIN_USERNAME", "admin")
-    admin_password = os.getenv("AUTH_ADMIN_PASSWORD", "AdminPass456!")
-
-    # Check credentials
-    if username == tester_username and password == tester_password:
-        return cl.User(
-            identifier="tester",
-            metadata={"role": "tester", "provider": "credentials"}
-        )
-    elif username == admin_username and password == admin_password:
-        return cl.User(
-            identifier="admin",
-            metadata={"role": "admin", "provider": "credentials"}
-        )
-    else:
-        return None
-
 
 # ============================================================================
 # CHAINLIT HANDLERS
 # ============================================================================
 
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+    if not LDAP_ADMIN_PASSWORD:
+        print("[AUTH] LDAP_ADMIN_PASSWORD not set in .env")
+        return None
+    
+    # Sanitize username to prevent LDAP injection
+    if not username.isalnum():
+        print(f"[AUTH] Invalid username format: {username}")
+        return None
+
+    try:
+        ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+        conn = ldap.initialize(LDAP_SERVER)
+        conn.set_option(ldap.OPT_REFERRALS, 0)
+        conn.set_option(ldap.OPT_PROTOCOL_VERSION, ldap.VERSION3)
+
+        conn.simple_bind_s(LDAP_SERVICE_USER_DN, LDAP_ADMIN_PASSWORD)
+
+        search_filter = f"(&(cn={username}))"
+        result = conn.search_s(LDAP_BASE_DN, ldap.SCOPE_SUBTREE, search_filter)
+
+        user_dn, user_info = result[0]
+        if not user_dn:
+            print(f"[AUTH] User not found: {username}")
+            return None
+
+        try:
+            conn.simple_bind_s(user_dn, password)
+        except ldap.INVALID_CREDENTIALS:
+            print(f"[AUTH] Invalid password for: {username}")
+            return None
+
+        first_name = user_info.get("givenName", [b""])[0].decode()
+        last_name = user_info.get("sn", [b""])[0].decode()
+        email = user_info.get("mail", [b""])[0].decode()
+
+        print(f"[AUTH] Login successful: {username} ({first_name} {last_name})")
+
+        return cl.User(
+            identifier=username,
+            metadata={"name": f"{first_name} {last_name}", "email": email}
+        )
+
+    except Exception as e:
+        print(f"[AUTH ERROR] {e}")
+        return None
+
+
 @cl.on_chat_start
 async def start():
+
+    # Generate admin access token for this session
+    token = secrets.token_urlsafe(32)
+    add_token(token)
+    cl.user_session.set("admin_token", token)
+
 
     cl.user_session.set("conversation_history", [])
     
@@ -268,10 +309,15 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "📚 My answers are based on XPCS research papers and textbooks.\n\n"
             "💡 I'll cite sources so you can verify and explore further."
             "\n\n---\n\n"
-             "⚙️ **Admin:** [Manage document weights](http://localhost:8001)"
-
+            f"⚙️ **Admin:** [Manage document weights](http://localhost:8001?token={token})"
     ).send()
 
+@cl.on_chat_end
+async def on_chat_end():
+    token = cl.user_session.get("admin_token")
+    if token:
+        remove_token(token)
+        print(f"[AUTH] Token invalidated on session end")
 
 @cl.on_message
 async def main(message: cl.Message):

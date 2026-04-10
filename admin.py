@@ -16,6 +16,10 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from langchain_community.document_loaders import PyPDFLoader
 
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse
+from auth_tokens import admin_auth_tokens, is_valid
+
 import requests as http_requests  # rename to avoid conflict with FastAPI Request
 
 def lookup_crossref_metadata(title: str) -> dict:
@@ -88,6 +92,26 @@ def clean_title(title):
 load_dotenv()
 
 admin_app = FastAPI()
+
+# token auth between 8000 and 8001 ports
+class TokenAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        token = request.query_params.get("token")
+        cookie_token = request.cookies.get("admin_token")
+
+        if token and is_valid(token):
+            response = await call_next(request)
+            response.set_cookie("admin_token", token, httponly=True, max_age=3600)
+            return response
+        elif cookie_token and is_valid(cookie_token):
+            return await call_next(request)
+        else:
+            # Clear the invalid cookie
+            response = RedirectResponse(url="http://localhost:8000", status_code=302)
+            response.delete_cookie("admin_token")
+            return response
+        
+admin_app.add_middleware(TokenAuthMiddleware)
 
 client = QdrantClient(
     host=os.getenv('QDRANT_HOST', 'localhost'),
