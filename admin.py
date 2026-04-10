@@ -316,6 +316,18 @@ async def admin_page():
         .btn-delete {{ background: #e53935; border-color: #e53935; color: white; }}
         .btn-delete:hover {{ background: #c62828; }}
         .doc-count {{ color: #888; font-size: 13px; margin-bottom: 16px; }}
+        .reset-btn {{
+            padding: 8px 18px;
+            background: #333;
+            color: #e0e0e0;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 16px;
+            transition: background 0.15s;
+        }}
+        .reset-btn:hover {{ background: #e53935; border-color: #e53935; color: white; }}
     </style>
 </head>
 <body>
@@ -325,6 +337,10 @@ async def admin_page():
         Adjust each document's relevance weight. (Default is 50/100) <br>
         <strong>Higher weight = prioritized more when answering questions.</strong><br>
     </p>
+
+    <button class="reset-btn" onclick="resetAllWeights()">
+        <i class="fa-solid fa-rotate-left"></i> Reset All Document Weights
+    </button>
 
     <div class="upload-section" id="uploadSection">
         <i class="fa-solid fa-cloud-arrow-up" style="font-size:28px; color:#2196f3; margin-bottom:8px;"></i>
@@ -374,6 +390,18 @@ async def admin_page():
             </div>
         </div>
     </div>
+
+    <div class="confirm-overlay" id="resetOverlay">
+        <div class="confirm-box">
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> Reset All Weights</h3>
+            <p>Are you sure you want to reset all document weights back to the default <strong>50/100</strong>?</p>
+            <div class="confirm-btns">
+                <button class="btn-cancel" onclick="cancelReset()">Cancel</button>
+                <button class="btn-delete" onclick="confirmReset()"><i class="fa-solid fa-rotate-left"></i> Reset All</button>
+            </div>
+        </div>
+    </div>
+
 
     <script>
         let pendingDeleteSource = null;
@@ -546,6 +574,36 @@ async def admin_page():
             input.files = e.dataTransfer.files;
             fileSelected();
         }});
+        function resetAllWeights() {{
+            document.getElementById('resetOverlay').style.display = 'flex';
+        }}
+        function cancelReset() {{
+            document.getElementById('resetOverlay').style.display = 'none';
+        }}
+        async function confirmReset() {{
+            document.getElementById('resetOverlay').style.display = 'none';
+
+            const resp = await fetch('/reset-weights', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/json'}}
+            }});
+
+            const data = await resp.json();
+            if (data.ok) {{
+                document.querySelectorAll('.doc-row').forEach(function(row) {{
+                    const hidden = row.querySelector('input[type="hidden"]');
+                    if (hidden) hidden.value = 50;
+                    const valSpan = row.querySelector('[id^="val-"]');
+                    if (valSpan) valSpan.textContent = '50/100';
+                    const barSpan = row.querySelector('[id^="bar-"]');
+                    if (barSpan) barSpan.innerHTML = getBar(50);
+                }});
+                showToast('All weights reset to 50/100', false);
+            }} else {{
+                showToast('Error: ' + (data.error || 'unknown'), true);
+            }}
+        }}
+        
     </script>
 </body>
 </html>"""
@@ -559,6 +617,17 @@ async def set_weight(request: Request):
     weights[data["filename"]] = data["weight"]
     save_weights(weights)
     return {"ok": True}
+
+@admin_app.post("/reset-weights")
+async def reset_weights():
+    """Reset all document weights to default (50)."""
+    try:
+        save_weights({})
+        print("[RESET] All weights reset to default")
+        return {"ok": True}
+    except Exception as e:
+        print(f"[RESET ERROR] {e}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
 @admin_app.post("/delete-doc")
