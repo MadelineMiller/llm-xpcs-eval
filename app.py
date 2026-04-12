@@ -100,6 +100,9 @@ LDAP_BASE_DN = os.getenv("LDAP_BASE_DN", "")
 LDAP_SERVICE_USER_DN = os.getenv("LDAP_SERVICE_USER_DN", "")
 LDAP_ADMIN_PASSWORD = os.getenv("LDAP_ADMIN_PASSWORD", "")
 
+# admin ranking system page
+APP_HOST = os.getenv("APP_HOST", "http://localhost")
+
 print("Initializing XPCS Hypothesis Evaluator...")
 embeddings = HuggingFaceEmbeddings(
     model_name="allenai/scibert_scivocab_uncased",
@@ -311,7 +314,7 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "My answers are based on XPCS research papers and textbooks.\n\n"
             "I'll cite sources so you can verify and explore further."
             "\n\n---\n\n"
-            f"⚙️ **Admin:** [Manage document weights](http://localhost:8001?token={token})"
+            f"⚙️ **Admin:** [Manage document weights]({APP_HOST}:8001?token={token})"
     ).send()
 
 @cl.on_chat_end

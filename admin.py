@@ -90,6 +90,7 @@ def clean_title(title):
 
 
 load_dotenv()
+APP_HOST = os.getenv("APP_HOST", "http://localhost")
 
 admin_app = FastAPI()
 
@@ -107,7 +108,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         else:
             # Clear the invalid cookie
-            response = RedirectResponse(url="http://localhost:8000", status_code=302)
+            response = RedirectResponse(url="http://{APP_HOST}:8000", status_code=302)
             response.delete_cookie("admin_token")
             return response
         
@@ -451,7 +452,7 @@ async def admin_page():
     </style>
 </head>
 <body>
-    <a class="back" href="http://localhost:8000"><i class="fa-solid fa-arrow-left"></i> Back to Chat</a>
+    <a class="back" href="http://{APP_HOST}:8000"><i class="fa-solid fa-arrow-left"></i> Back to Chat</a>
     <h1><i class="fa-solid fa-book"></i> XPCS Document Manager</h1>
     <p class="subtitle">
         Adjust each document's relevance weight. (Default is 50/100) <br>
