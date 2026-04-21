@@ -148,6 +148,11 @@ def add_to_review_queue(doi: str, title: str, authors: list,
     """Write a paper to the human review queue."""
     print(f"\n[TOOL EXECUTING] add_to_review_queue('{title[:60]}...')")
 
+    if not relevant:
+        msg = f"Paper '{title}' marked as not relevant, skipped."
+        print(f"  {msg}")
+        return msg
+
     queue = []
     if REVIEW_QUEUE_FILE.exists():
         with open(REVIEW_QUEUE_FILE) as f:
