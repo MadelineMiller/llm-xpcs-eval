@@ -1,34 +1,70 @@
 # XPCS Hypothesis Evaluator LLM (In Progress)
 
-## Target Audience: 
+## About the Project
+
+### Target Audience: 
 * Beamline visiting users
   
-## Context & Sources  
+### Context & Sources  
 * Textbooks on XPCS  
 * Data handbook   
 * Sources present in the Annual Review of Materials Research (2018) citations
   
-## Key Capabilities
+### Key Capabilities
 * Assist users in formulating and refining scientific hypotheses for XPCS experiments
 * Check feasibility of testing the user's hypothesis against 8-ID’s resources and capabilities
   
-## Primary Goals
+### Primary Goals
 * Enable users to validate whether their experiment concept is technically feasible at 8-ID
 * Reduce back-and-forth with beamline staff by providing upfront guidance to users
+
+### Technical Overview
+This project has a few distinct parts:
+
+**Part 1 — Agentic XPCS Publication Harvester:** An agentic AI system that autonomously scouts global beamline publication pages, evaluates papers for XPCS relevance, and submits candidates to a human review queue for ingestion into the chatbot's knowledge base.
+
+**Part 2 — RAG Chatbot:** A retrieval-augmented generation chatbot that helps beamline visiting users formulate and evaluate XPCS experiment hypotheses against 8-ID's capabilities.
+
+**Part 3 - Document Ranking System:** TBD
+
+
+<h2><img src="https://img.shields.io/badge/Part_1-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;Agentic XPCS Publication Harvester</h2>
+
+
+An agentic AI system that keeps the chatbot's knowledge base current by autonomously finding and screening new XPCS papers from beamline publication pages around the world.
+
+### How It Works
+
+The agent is built from three components working together:
+
+- **Claude (via Argo API)** — the reasoning engine that decides what to do at each step
+- **Tools** — Python functions that interact with the real world
+- **Agent loop** — sends tool results back to Claude so it can decide what to do next
+
+### Tools Available to Claude
+
+| Tool | What It Does |
+|------|-------------|
+| `scrape_beamline_page` | Loads a beamline publications page and extracts paper metadata |
+| `fetch_abstract` | Retrieves a paper's abstract via Crossref or Semantic Scholar |
+| `add_to_review_queue` | Writes a relevant paper to the human review queue |
+
+
+<h2><img src="https://img.shields.io/badge/Part_2-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;RAG Chatbot</h2>
 
 ## Architecture of Ingestion & Query Processing
 ![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
 
-## Data Flow
+### Data Flow
 
-### Ingestion (One-time Setup)
+#### Ingestion (One-time Setup)
 1. Google Scholar -> 115 XPCS papers downloaded
 2. PDFs loaded -> 113 successfully processed
 3. Text extraction -> Split into 5,743 chunks (1000 chars, 200 overlap)
 4. SciBERT embeddings -> 768-dimensional vectors generated
 5. Qdrant vector database -> Vectors stored with metadata (source, page)
 
-### Query Processing (Runtime)
+#### Query Processing (Runtime)
 1. User submits question via Chainlit UI
 2. Question embedded using SciBERT
 3. Qdrant performs semantic search (cosine similarity)
@@ -38,7 +74,11 @@
 7. LLM generates response with source citations
 8. Answer displayed in Chainlit with paper names and page numbers
 
-## Repository Structure
+<h2><img src="https://img.shields.io/badge/Part_3-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;Document Ranking System</h2>
+
+TODO
+
+### Repository Structure
 `llm-xpcs-eval/`  
 |-- `context/`                    # Document acquisition  
 | ---------> `download_context_docs.py`   # Selenium scraper for Google Scholar PDFs  
@@ -49,7 +89,7 @@
 |--  `config.py`                   # Hyperparameters (retrieval, LLM)  
 |-- `docker-compose.yml`          # Infrastructure (Qdrant vector DB)  
 
-## Tech Stack
+### Tech Stack
 
 **Frontend:** Built with [Chainlit](https://github.com/Chainlit/chainlit), an open-source framework for building conversational AI interfaces.
 
