@@ -1,10 +1,8 @@
-doc_weights.json
-.qdrant-initialized
-*.json
-
-# qdrant db
+# db & document related
 storage/
 qdrant
+*.json
+.qdrant-initialized
 
 # Environment variables
 .env
