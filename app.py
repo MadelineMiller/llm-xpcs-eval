@@ -1,4 +1,5 @@
-from admin import launch_admin
+from admin.admin import launch_admin
+from admin.weights_manager import load_weights, save_weights, get_all_docs, apply_weights
 launch_admin()
 
 import os
@@ -10,8 +11,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from qdrant_client import QdrantClient
 
 from config import RETRIEVAL_CONFIG, LLM_CONFIG
-
-from weights_manager import load_weights, save_weights, get_all_docs, apply_weights
 
 import ldap
 

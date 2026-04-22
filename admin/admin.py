@@ -8,7 +8,7 @@ import tempfile
 from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
-from weights_manager import load_weights, save_weights, get_all_docs
+from admin.weights_manager import load_weights, save_weights, get_all_docs
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
 from langchain_community.embeddings import HuggingFaceEmbeddings
