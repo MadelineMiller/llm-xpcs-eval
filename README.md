@@ -87,7 +87,6 @@ TODO
 | ---------> `test_retrieval.py`          # Test vector search  
 |-- `app.py`                    # Main Chainlit chat interface  
 |--  `config.py`                   # Hyperparameters (retrieval, LLM)  
-|-- `docker-compose.yml`          # Infrastructure (Qdrant vector DB)  
 
 ### Tech Stack
 
@@ -98,7 +97,6 @@ TODO
 
 **Databases:** 
 - Qdrant (vector database for embeddings)
-- ~~PostgreSQL~~ (removed - not currently used)
 
 **RAG Pipeline:**
 - LangChain (document loading, text splitting, embedding interface)
@@ -108,9 +106,7 @@ TODO
 **LLM:** Argo API (GPT-4o)
 
 **Infrastructure:**
-- Docker (Qdrant container)
-* Qdrant (the vector database) is running inside a Docker container
-* Document embeddings are stored in a docker volume (called qdrant_data)
+* Qdrant (the vector database)
 - Conda environment: `xpcs-llm` (Python dependencies)
 
 ## Overall Architecture of the Desired System
