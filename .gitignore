@@ -27,6 +27,7 @@ chainlit.md
 
 # Documents (large files)
 context_docs/
+agent/pdfs/
 
 # macOS
 .DS_Store

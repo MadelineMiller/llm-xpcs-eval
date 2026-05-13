@@ -1,7 +1,7 @@
 # Retrieval Configuration
 RETRIEVAL_CONFIG = {
     # Number of passages to retrieve from vector database
-    'num_results': 20,
+    'num_results': 40,
     
     # Minimum similarity score (0-1) to include a passage
     # Higher = more strict, only very relevant passages

@@ -3,6 +3,7 @@ from admin.weights_manager import load_weights, save_weights, get_all_docs, appl
 launch_admin()
 
 import os
+import json
 import requests
 
 import chainlit as cl
@@ -136,7 +137,7 @@ def call_argo_llm(messages):
     }
     
     try:
-        response = requests.post(ARGO_API_URL, json=payload, timeout=60)
+        response = requests.post(ARGO_API_URL, json=payload, timeout=90)
         if not response.ok:
             print(f"Argo API Error {response.status_code}: {response.text}")
             return f"API Error {response.status_code}: {response.text}"
@@ -156,6 +157,90 @@ def call_argo_llm(messages):
         return f"Network error calling Argo API: {str(e)}"
     except Exception as e:
         return f"Error calling Argo API: {str(e)}"
+
+
+def extract_keywords(question: str) -> list:
+    """Extract distinctive terms from the question for keyword-based retrieval."""
+    stop_words = {
+        'what', 'how', 'why', 'when', 'where', 'which', 'who', 'is', 'are',
+        'the', 'a', 'an', 'of', 'in', 'on', 'at', 'to', 'for', 'with',
+        'that', 'this', 'these', 'those', 'and', 'or', 'but', 'not', 'from',
+        'does', 'define', 'describe', 'explain', 'tell', 'give', 'about',
+        'function', 'equation', 'formula', 'value', 'between', 'using',
+    }
+    # Acronyms: all-caps words of any length (XIFS, XPCS, SAXS, etc.)
+    acronyms = re.findall(r'\b[A-Z]{2,}\b', question)
+
+    # Long distinctive words (> 5 chars, not stop words)
+    words = re.findall(r'[a-zA-Z]+', question.lower())
+    long_words = [w for w in words if len(w) > 5 and w not in stop_words]
+    long_words = sorted(set(long_words), key=len, reverse=True)[:2]
+
+    return list(set(a.lower() for a in acronyms)) + long_words
+
+
+def rerank_chunks(question: str, candidates: list) -> list:
+    """Use LLM to filter retrieved chunks down to those that actually answer the question."""
+    if not candidates:
+        return []
+
+    passages = []
+    for i, point in enumerate(candidates, 1):
+        text = point.payload.get("text", "")[:600]
+        passages.append(str(i) + ". " + text)
+
+    passages_str = "\n\n".join(passages)
+
+    prompt = (
+        "You are a relevance filter for a scientific Q&A system about XPCS "
+        "(X-ray Photon Correlation Spectroscopy).\n\n"
+        "Question: " + question + "\n\n"
+        "Below are " + str(len(candidates)) + " passages retrieved from scientific literature. "
+        "Identify which passages contain information that directly helps answer the question. "
+        "Be strict — only select passages that contain relevant information.\n\n"
+        + passages_str + "\n\n"
+        "Respond with ONLY valid JSON listing the relevant passage numbers.\n"
+        "Example: {\"relevant\": [1, 3, 5]}\n"
+        "If none are relevant: {\"relevant\": []}"
+    )
+
+    payload = {
+        "user": ARGO_USER,
+        "model": LLM_CONFIG["model"],
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "top_p": 1.0,
+        "max_tokens": 150,
+    }
+
+    try:
+        response = requests.post(ARGO_API_URL, json=payload, timeout=60)
+        response.raise_for_status()
+        result = response.json()
+
+        if "choices" in result:
+            text = result["choices"][0]["message"]["content"]
+        elif "response" in result:
+            text = result["response"]
+        elif "content" in result:
+            text = result["content"]
+        else:
+            return candidates
+
+        match = re.search(r'\{[^}]*"relevant"[^}]*\}', text, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            indices = data.get("relevant", [])
+            if isinstance(indices, list) and indices:
+                filtered = [candidates[i - 1] for i in indices if 1 <= i <= len(candidates)]
+                print("[RERANKER] Kept", len(filtered), "of", len(candidates), "chunks")
+                return filtered
+
+        print("[RERANKER] Could not parse response, using all candidates:", text[:100])
+    except Exception as e:
+        print("[RERANKER] Error:", e, "— falling back to all candidates")
+
+    return candidates
 
 
 # ============================================================================
@@ -313,7 +398,7 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "My answers are based on XPCS research papers and textbooks.\n\n"
             "I'll cite sources so you can verify and explore further."
             "\n\n---\n\n"
-            f"⚙️ **Admin:** [Manage document weights]({APP_HOST}:8001?token={token})"
+            f"⚙️ **Admin:** [Manage document weights or review the document queue]({APP_HOST}:8001?token={token})"
     ).send()
 
 @cl.on_chat_end
@@ -326,7 +411,7 @@ async def on_chat_end():
 @cl.on_message
 async def main(message: cl.Message):
 
-    msg = cl.Message(content="🔍 Searching XPCS literature and generating answer...")
+    msg = cl.Message(content="Searching XPCS literature...")
     await msg.send()
     
     conversation_history = cl.user_session.get("conversation_history")
@@ -351,55 +436,127 @@ async def main(message: cl.Message):
     
     # Search for relevant context
     query_vector = embeddings.embed_query(expanded_query)
+
+    base_filter = {
+        "must_not": [{"key": "source", "match": {"text": "x-ray-data-booklet"}}]
+    }
+
+    # Primary: broad semantic search
     results = client.query_points(
         collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents'),
         query=query_vector,
         limit=RETRIEVAL_CONFIG['num_results'],
-        query_filter={
-            "must_not": [
-                {
-                    "key": "source",
-                    "match": {
-                        "text": "x-ray-data-booklet"
-                    }
-                }
-            ]
-        }
+        query_filter=base_filter,
     )
+    combined_points = list(results.points)
+    seen_ids = {p.id for p in combined_points}
+
+    from qdrant_client.models import Filter, FieldCondition, MatchText, MatchValue
+
+    class _SyntheticPoint:
+        """Wraps a scroll Record to be compatible with apply_weights (.id, .score, .payload)."""
+        def __init__(self, record, score):
+            self.id = record.id
+            self.score = score
+            self.payload = record.payload
+
+    COLLECTION = os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents')
+
+    # Secondary: keyword scroll — finds chunks containing ALL key terms regardless of vector rank
+    keywords = extract_keywords(message.content)
+    kw_added = 0
+    if keywords:
+        kw_filter = Filter(
+            must_not=[FieldCondition(key="source", match=MatchValue(value="x-ray-data-booklet"))],
+            must=[FieldCondition(key="text", match=MatchText(text=kw)) for kw in keywords],
+        )
+        kw_records, _ = client.scroll(
+            collection_name=COLLECTION,
+            scroll_filter=kw_filter,
+            limit=30,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for record in kw_records:
+            if record.id not in seen_ids:
+                combined_points.append(_SyntheticPoint(record, score=0.9))
+                seen_ids.add(record.id)
+                kw_added += 1
+
+    # Tertiary: adjacent chunk retrieval — for each retrieved doc, also fetch neighboring pages
+    # so that definitions/context on adjacent pages aren't missed
+    doc_pages = {}
+    for point in combined_points:
+        src = point.payload.get('source', '')
+        page = point.payload.get('page')
+        if src and page is not None:
+            doc_pages.setdefault(src, set()).add(int(page))
+
+    adj_added = 0
+    for src, pages in doc_pages.items():
+        adjacent_pages = set()
+        for page in pages:
+            if page > 0:
+                adjacent_pages.add(page - 1)
+            adjacent_pages.add(page + 1)
+        adjacent_pages -= pages  # don't re-fetch already-retrieved pages
+
+        if not adjacent_pages:
+            continue
+
+        adj_filter = Filter(
+            must=[
+                FieldCondition(key="source", match=MatchValue(value=src)),
+            ],
+            should=[
+                FieldCondition(key="page", match=MatchValue(value=p))
+                for p in adjacent_pages
+            ],
+        )
+        adj_records, _ = client.scroll(
+            collection_name=COLLECTION,
+            scroll_filter=adj_filter,
+            limit=10,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for record in adj_records:
+            if record.id not in seen_ids:
+                combined_points.append(_SyntheticPoint(record, score=0.80))
+                seen_ids.add(record.id)
+                adj_added += 1
+
+    print("Keywords:", keywords, "| kw added:", kw_added, "| adjacent added:", adj_added)
+
+    # Wrap as a simple namespace so apply_weights works unchanged
+    class _Results:
+        def __init__(self, points):
+            self.points = points
+
+    results = _Results(combined_points)
 
     current_weights = load_weights()
 
     # Apply weights and re-sort by priority
     reranked_points = apply_weights(results.points, current_weights)
 
-    
-    # DEBUG: Print all scores
-    print(f"\n{'='*60}")
-    print(f"Query: {message.content}")
-    print(f"Retrieved {len(results.points)} results, {len(reranked_points)} after weight filter:")
+    print("\nQuery:", message.content)
+    print("Retrieved", len(reranked_points), "candidates from Qdrant")
     for idx, result in enumerate(reranked_points, 1):
         source = os.path.basename(result.payload['source'])
-        weight = current_weights.get(source, 50)
-        print(f"  [{idx}] Similarity: {result.score:.4f} | Weight: {weight}/100 | {source}")
-    print(f"Threshold: {RETRIEVAL_CONFIG['relevance_threshold']}")
-    print(f"{'='*60}\n")
+        print("  [" + str(idx) + "] score=" + str(round(result.score, 4)) + " | " + source)
 
-    # Adaptive threshold
-    adaptive_threshold = min(
-        RETRIEVAL_CONFIG['relevance_threshold'],
-        max(0.55, reranked_points[0].score - 0.05) if reranked_points else 0.6
-    )
+    # LLM reranker: filter candidates to those that actually answer the question
+    msg.content = "Verifying source relevance..."
+    await msg.update()
 
-    print(f"Using adaptive threshold: {adaptive_threshold:.4f}")
+    reranked_points = rerank_chunks(message.content, reranked_points)
 
     context_parts = []
     sources = []
     seen_titles = set()
 
     for idx, result in enumerate(reranked_points, 1):
-        if result.score < adaptive_threshold:
-            continue
-
         p = result.payload
         source = os.path.basename(p['source'])
         page = p['page']
@@ -447,17 +604,14 @@ DO NOT say "the literature doesn't provide information" - you have {len(context_
 Provide a comprehensive, well-cited answer based on the passages."""
         
     else:
-        context_message = f"""No passages met the relevance threshold ({adaptive_threshold:.2f}).
-
-Top result score: {results.points[0].score:.4f}
-Source: {os.path.basename(results.points[0].payload['source'])}
-
-USER QUESTION: {message.content}
-
-Since no highly relevant passages were retrieved, respond with:
-"I don't have specific information about this in the XPCS literature database. For [topic], please consult [appropriate resource]."
-
-Do NOT attempt to answer from general knowledge."""
+        context_message = (
+            "No relevant passages were found for this question.\n\n"
+            "USER QUESTION: " + message.content + "\n\n"
+            "Since no relevant passages were retrieved, respond with:\n"
+            "\"I don't have specific information about this in the XPCS literature database. "
+            "For [topic], please consult [appropriate resource].\"\n\n"
+            "Do NOT attempt to answer from general knowledge."
+        )
     
     # Build messages for Argo API
     messages = [system_prompt]
@@ -517,11 +671,7 @@ Do NOT attempt to answer from general knowledge."""
 
 {sources_with_scores}"""
     else:
-        response = f"""{answer}
-
----
-
-**Note:** No passages met the relevance threshold of {adaptive_threshold:.2%}."""
+        response = answer + "\n\n---\n\n**Note:** No relevant passages were found in the literature database."
     
     msg.content = response
     msg.actions = actions

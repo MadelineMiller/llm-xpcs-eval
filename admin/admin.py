@@ -2,9 +2,12 @@ import threading
 import uvicorn
 import os
 import re
+import json
 import html as html_lib
 import uuid
 import tempfile
+from datetime import datetime
+from pathlib import Path
 from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
@@ -102,7 +105,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
         if token and is_valid(token):
             response = await call_next(request)
-            response.set_cookie("admin_token", token, httponly=True, max_age=3600)
+            response.set_cookie("admin_token", token, httponly=True, max_age=86400)
             return response
         elif cookie_token and is_valid(cookie_token):
             return await call_next(request)
@@ -140,6 +143,88 @@ def get_bar(weight: int) -> str:
 async def admin_page():
     docs = get_all_docs(client, COLLECTION_NAME)
     weights = load_weights()
+
+    # ── Review queue (server-side rendered) ──
+    queue = _load_queue()
+    pending_count = sum(1 for e in queue if e.get("status") == "pending")
+    cnt_approved  = sum(1 for e in queue if e.get("status") == "approved")
+    cnt_rejected  = sum(1 for e in queue if e.get("status") == "rejected")
+
+    queue_cards_html = ""
+    for entry in queue:
+        doi        = entry.get("doi", "")
+        title      = html_lib.escape(entry.get("title", "Untitled"))
+        status     = entry.get("status", "pending")
+        authors    = entry.get("authors", [])
+        journal    = html_lib.escape(entry.get("journal", ""))
+        abstract   = html_lib.escape(entry.get("abstract", ""))
+        source_url = entry.get("source_url", "")
+        pdf_path   = entry.get("pdf_path")
+        queued_date = (entry.get("queued_at") or "")[:10]
+
+        decision   = entry.get("agent_decision") or {}
+        confidence = (decision.get("confidence") or "low").lower()
+        reason     = html_lib.escape(decision.get("reason") or "")
+
+        if len(authors) > 3:
+            author_str = html_lib.escape(authors[0]) + " et al."
+        elif authors:
+            author_str = html_lib.escape(", ".join(authors))
+        else:
+            author_str = "Unknown"
+
+        doi_link = (
+            f'<a href="https://doi.org/{html_lib.escape(doi)}" target="_blank" class="doi-link">'
+            f'{html_lib.escape(doi)} &#8599;</a>'
+        ) if doi else ""
+
+        meta_parts = [p for p in [author_str, journal] if p]
+        meta = " &middot; ".join(meta_parts)
+        if doi_link:
+            meta += f" &middot; {doi_link}"
+
+        if pdf_path and os.path.exists(pdf_path):
+            pdf_html = '<span class="pdf-status pdf-ok"><i class="fa-solid fa-file-pdf"></i> PDF downloaded</span>'
+        else:
+            pdf_html = '<span class="pdf-status pdf-missing"><i class="fa-solid fa-triangle-exclamation"></i> No PDF found &mdash; abstract will be embedded. If you have the PDF, upload it manually via the Document Weights tab.</span>'
+
+        js_doi = doi.replace("'", "\\'")
+        safe_doi = html_lib.escape(doi)
+        src_display = html_lib.escape(
+            source_url.replace("https://", "").replace("http://", "")[:60]
+        )
+
+        if status == "pending":
+            action_html = (
+                f'<div class="queue-actions">'
+                f'<button class="approve-btn" onclick="approveDoc(\'{js_doi}\')"><i class="fa-solid fa-check"></i> Approve</button>'
+                f'<button class="deny-btn" onclick="rejectDoc(\'{js_doi}\')"><i class="fa-solid fa-xmark"></i> Deny</button>'
+                f'</div>'
+            )
+        elif status == "approved":
+            approved_at = (entry.get("approved_at") or "")[:10]
+            itype = " (abstract only)" if entry.get("ingestion_type") == "abstract_only" else " (full text)"
+            action_html = f'<span class="status-badge status-approved"><i class="fa-solid fa-check"></i> Approved {approved_at}{itype}</span>'
+        else:
+            rejected_at = (entry.get("rejected_at") or "")[:10]
+            action_html = f'<span class="status-badge status-rejected"><i class="fa-solid fa-xmark"></i> Rejected {rejected_at}</span>'
+
+        card_style = "" if status == "pending" else ' style="display:none"'
+        queue_cards_html += f"""
+        <div class="queue-card" data-status="{status}" data-doi="{safe_doi}"{card_style}>
+            <div class="queue-card-header">
+                <strong class="queue-title">{title}</strong>
+                {action_html}
+            </div>
+            <div class="queue-meta">{meta}</div>
+            <div class="queue-source">Source: <a href="{html_lib.escape(source_url)}" target="_blank" class="doi-link">{src_display}...</a> &middot; Queued: {queued_date}</div>
+            {pdf_html}
+            <div class="agent-row"><span class="agent-badge {confidence}">{confidence.upper()}</span> {reason}</div>
+            <button class="abstract-toggle" onclick="toggleAbstract(this)"><i class="fa-solid fa-chevron-down"></i> Abstract</button>
+            <div class="abstract-text" style="display:none">{abstract}</div>
+        </div>"""
+
+    badge_hidden = "hidden" if pending_count == 0 else ""
 
     rows = ""
     for doc in docs:
@@ -449,11 +534,177 @@ async def admin_page():
         .edit-field input:focus {{ border-color: #2196f3; }}
         .btn-save {{ background: #2196f3; border-color: #2196f3; color: white; }}
         .btn-save:hover {{ background: #1e88e5; }}
+
+        /* ── Tab navigation ── */
+        .tab-nav {{
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid #333;
+            margin-bottom: 24px;
+        }}
+        .tab-btn {{
+            padding: 10px 22px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            color: #aaa;
+            font-size: 15px;
+            cursor: pointer;
+            border-radius: 0;
+            transition: color 0.15s;
+        }}
+        .tab-btn:hover {{ background: none; color: #e0e0e0; border-color: #555; }}
+        .tab-btn.active {{ color: #2196f3; border-bottom-color: #2196f3; }}
+        .queue-badge {{
+            display: inline-block;
+            background: #2196f3;
+            color: white;
+            font-size: 11px;
+            border-radius: 10px;
+            padding: 1px 7px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }}
+        .queue-badge.hidden {{ display: none; }}
+
+        /* ── Review Queue tab ── */
+        .queue-filter-row {{
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }}
+        .filter-btn {{
+            padding: 7px 18px;
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 20px;
+            color: #aaa;
+            font-size: 13px;
+            cursor: pointer;
+        }}
+        .filter-btn:hover {{ background: #333; color: #e0e0e0; border-color: #777; }}
+        .filter-btn.active {{ background: #2196f3; border-color: #2196f3; color: white; }}
+        .filter-count {{
+            font-weight: bold;
+            margin-left: 4px;
+        }}
+        .queue-card {{
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+        }}
+        .queue-card-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 6px;
+        }}
+        .queue-title {{
+            color: #ffffff;
+            font-size: 15px;
+            flex: 1;
+        }}
+        .queue-actions {{ display: flex; gap: 8px; flex-shrink: 0; }}
+        .approve-btn {{
+            padding: 6px 16px;
+            background: #2e7d32;
+            border-color: #2e7d32;
+            color: white;
+            font-size: 13px;
+        }}
+        .approve-btn:hover {{ background: #1b5e20; border-color: #1b5e20; }}
+        .deny-btn {{
+            padding: 6px 16px;
+            background: #b71c1c;
+            border-color: #b71c1c;
+            color: white;
+            font-size: 13px;
+        }}
+        .deny-btn:hover {{ background: #7f0000; border-color: #7f0000; }}
+        .queue-meta {{ font-size: 13px; color: #999; margin-bottom: 4px; }}
+        .queue-source {{ font-size: 12px; color: #666; margin-bottom: 8px; }}
+        .pdf-status {{
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }}
+        .pdf-ok {{ background: #1b5e20; color: #a5d6a7; }}
+        .pdf-missing {{ background: #4a3800; color: #ffe082; }}
+        .agent-row {{
+            font-size: 13px;
+            color: #bbb;
+            margin-bottom: 10px;
+        }}
+        .agent-badge {{
+            display: inline-block;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 4px;
+            padding: 1px 8px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }}
+        .agent-badge.high {{ background: #1b5e20; color: #a5d6a7; }}
+        .agent-badge.medium {{ background: #4a3800; color: #ffe082; }}
+        .agent-badge.low {{ background: #4a1212; color: #ef9a9a; }}
+        .abstract-toggle {{
+            background: none;
+            border: 1px solid #555;
+            color: #aaa;
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 0;
+        }}
+        .abstract-toggle:hover {{ background: #333; color: #e0e0e0; border-color: #777; }}
+        .abstract-text {{
+            margin-top: 10px;
+            font-size: 13px;
+            color: #bbb;
+            line-height: 1.6;
+            border-left: 3px solid #444;
+            padding-left: 12px;
+        }}
+        .status-badge {{
+            font-size: 12px;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }}
+        .status-approved {{ background: #1b5e20; color: #a5d6a7; }}
+        .status-rejected {{ background: #4a1212; color: #ef9a9a; }}
+        .queue-empty {{
+            text-align: center;
+            padding: 40px 20px;
+            color: #555;
+            font-size: 15px;
+            display: none;
+        }}
     </style>
 </head>
 <body>
     <a class="back" href="{APP_HOST}:8000"><i class="fa-solid fa-arrow-left"></i> Back to Chat</a>
     <h1><i class="fa-solid fa-book"></i> XPCS Document Manager</h1>
+
+    <div class="tab-nav">
+        <button class="tab-btn active" id="tab-btn-weights" onclick="switchTab('weights')">
+            <i class="fa-solid fa-sliders"></i> Document Weights
+        </button>
+        <button class="tab-btn" id="tab-btn-queue" onclick="switchTab('queue')">
+            <i class="fa-solid fa-inbox"></i> Review Queue [NOT FUNCTIONAL YET] 
+            <span class="queue-badge {badge_hidden}" id="pendingBadge">{pending_count}</span>
+        </button>
+    </div>
+
+    <div id="tab-weights" class="tab-content">
     <p class="subtitle">
         Adjust each document's relevance weight. (Default is 50/100) <br>
         <strong>Higher weight = prioritized more when answering questions.</strong><br>
@@ -505,6 +756,27 @@ async def admin_page():
     </table>
 
     <p class="no-results" id="noResults"><i class="fa-solid fa-circle-exclamation"></i> No documents match your search.</p>
+    </div><!-- /tab-weights -->
+
+    <div id="tab-queue" class="tab-content" style="display:none">
+        <div class="queue-filter-row">
+            <button class="filter-btn active" id="filter-pending" onclick="filterQueue('pending')">
+                Pending <span class="filter-count" id="cnt-pending">{pending_count}</span>
+            </button>
+            <button class="filter-btn" id="filter-approved" onclick="filterQueue('approved')">
+                Approved <span class="filter-count" id="cnt-approved">{cnt_approved}</span>
+            </button>
+            <button class="filter-btn" id="filter-rejected" onclick="filterQueue('rejected')">
+                Rejected <span class="filter-count" id="cnt-rejected">{cnt_rejected}</span>
+            </button>
+        </div>
+        <div id="queue-cards">
+            {queue_cards_html}
+        </div>
+        <p class="queue-empty" id="queue-empty" style="display:{'none' if pending_count > 0 else 'block'}">
+            <i class="fa-solid fa-circle-check"></i> No papers in this category.
+        </p>
+    </div><!-- /tab-queue -->
 
     <div class="toast" id="toast"><i class="fa-solid fa-check"></i> <span id="toastMsg">Saved!</span></div>
 
@@ -829,6 +1101,114 @@ async def admin_page():
             }}
 
 
+        // ── Tab switching ──
+        function switchTab(tab) {{
+            document.getElementById('tab-weights').style.display = tab === 'weights' ? '' : 'none';
+            document.getElementById('tab-queue').style.display   = tab === 'queue'   ? '' : 'none';
+            document.getElementById('tab-btn-weights').classList.toggle('active', tab === 'weights');
+            document.getElementById('tab-btn-queue').classList.toggle('active', tab === 'queue');
+            if (tab === 'queue') filterQueue(activeFilter);
+            window.location.hash = tab;
+        }}
+
+        // ── Review Queue ──
+        let activeFilter = 'pending';
+
+        function filterQueue(status) {{
+            activeFilter = status;
+            ['pending','approved','rejected'].forEach(function(s) {{
+                document.getElementById('filter-' + s).classList.toggle('active', s === status);
+            }});
+            let visible = 0;
+            document.querySelectorAll('.queue-card').forEach(function(card) {{
+                const show = card.dataset.status === status;
+                card.style.display = show ? '' : 'none';
+                if (show) visible++;
+            }});
+            document.getElementById('queue-empty').style.display = visible === 0 ? 'block' : 'none';
+        }}
+
+        function toggleAbstract(btn) {{
+            const text = btn.nextElementSibling;
+            const open = text.style.display !== 'none';
+            text.style.display = open ? 'none' : 'block';
+            btn.innerHTML = open
+                ? '<i class="fa-solid fa-chevron-down"></i> Abstract'
+                : '<i class="fa-solid fa-chevron-up"></i> Abstract';
+        }}
+
+        function _updateQueueCounts() {{
+            const pending  = document.querySelectorAll('.queue-card[data-status="pending"]').length;
+            const approved = document.querySelectorAll('.queue-card[data-status="approved"]').length;
+            const rejected = document.querySelectorAll('.queue-card[data-status="rejected"]').length;
+            document.getElementById('cnt-pending').textContent  = pending;
+            document.getElementById('cnt-approved').textContent = approved;
+            document.getElementById('cnt-rejected').textContent = rejected;
+            document.getElementById('pendingBadge').textContent = pending;
+            document.getElementById('pendingBadge').classList.toggle('hidden', pending === 0);
+        }}
+
+        async function approveDoc(doi) {{
+            try {{
+                const resp = await fetch('/approve-doc', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{doi: doi}})
+                }});
+                const data = await resp.json();
+                if (data.ok) {{
+                    const label = data.ingestion_type === 'abstract_only' ? 'abstract only' : data.chunks + ' chunks';
+                    showToast('Approved and ingested (' + label + ')', false);
+                    const card = Array.from(document.querySelectorAll('.queue-card')).find(c => c.dataset.doi === doi);
+                    if (card) {{
+                        card.dataset.status = 'approved';
+                        const today = new Date().toISOString().slice(0, 10);
+                        const suffix = data.ingestion_type === 'abstract_only' ? ' (abstract only)' : ' (full text)';
+                        const actions = card.querySelector('.queue-actions');
+                        if (actions) actions.outerHTML = '<span class="status-badge status-approved"><i class="fa-solid fa-check"></i> Approved ' + today + suffix + '</span>';
+                        _updateQueueCounts();
+                        filterQueue(activeFilter);
+                    }}
+                }} else {{
+                    showToast('Error: ' + (data.error || 'unknown'), true);
+                }}
+            }} catch(err) {{
+                showToast('Request failed: ' + err.message, true);
+            }}
+        }}
+
+        async function rejectDoc(doi) {{
+            try {{
+                const resp = await fetch('/reject-doc', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{doi: doi}})
+                }});
+                const data = await resp.json();
+                if (data.ok) {{
+                    showToast('Paper rejected.', false);
+                    const card = Array.from(document.querySelectorAll('.queue-card')).find(c => c.dataset.doi === doi);
+                    if (card) {{
+                        card.dataset.status = 'rejected';
+                        const today = new Date().toISOString().slice(0, 10);
+                        const actions = card.querySelector('.queue-actions');
+                        if (actions) actions.outerHTML = '<span class="status-badge status-rejected"><i class="fa-solid fa-xmark"></i> Rejected ' + today + '</span>';
+                        _updateQueueCounts();
+                        filterQueue(activeFilter);
+                    }}
+                }} else {{
+                    showToast('Error: ' + (data.error || 'unknown'), true);
+                }}
+            }} catch(err) {{
+                showToast('Request failed: ' + err.message, true);
+            }}
+        }}
+
+        // Restore tab and filter from URL hash on load
+        if (window.location.hash === '#queue') {{
+            switchTab('queue');
+        }}
+
         const uploadSection = document.getElementById('uploadSection');
         uploadSection.addEventListener('dragover', (e) => {{
             e.preventDefault();
@@ -1113,6 +1493,143 @@ async def upload_doc(
         print(f"[UPLOAD ERROR] {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
+
+
+REVIEW_QUEUE_FILE = Path(__file__).parent.parent / "agent" / "review_queue.json"
+
+
+def _load_queue() -> list:
+    if REVIEW_QUEUE_FILE.exists():
+        with open(REVIEW_QUEUE_FILE) as f:
+            return json.load(f)
+    return []
+
+
+def _save_queue(queue: list):
+    with open(REVIEW_QUEUE_FILE, "w") as f:
+        json.dump(queue, f, indent=2)
+
+
+@admin_app.get("/review-queue")
+async def get_review_queue():
+    return JSONResponse(content=_load_queue())
+
+
+@admin_app.post("/approve-doc")
+async def approve_doc(request: Request):
+    try:
+        data = await request.json()
+        doi = data.get("doi", "").strip()
+        if not doi:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "doi required"})
+
+        queue = _load_queue()
+        entry = next((e for e in queue if e["doi"] == doi), None)
+        if not entry:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "DOI not found in queue"})
+
+        pdf_path = entry.get("pdf_path")
+        abstract = entry.get("abstract", "")
+        title = entry.get("title", doi)
+        authors = entry.get("authors", [])
+        journal = entry.get("journal", "")
+        doi_url = f"https://doi.org/{doi}"
+
+        year = ""
+        queued_at = entry.get("queued_at", "")
+        if queued_at:
+            year = queued_at[:4]
+
+        points = []
+        ingestion_type = "abstract_only"
+
+        if pdf_path and os.path.exists(pdf_path):
+            loader = PyPDFLoader(pdf_path)
+            pages = loader.load()
+            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            chunks = splitter.split_documents(pages)
+            for chunk in chunks:
+                vector = embeddings.embed_query(chunk.page_content)
+                points.append(PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=vector,
+                    payload={
+                        "source": doi,
+                        "title": title,
+                        "text": chunk.page_content,
+                        "page": chunk.metadata.get("page", 0),
+                        "authors": authors,
+                        "journal": journal,
+                        "year": year,
+                        "doi": doi,
+                        "url": doi_url,
+                        "ingestion_type": "full_text",
+                    }
+                ))
+            ingestion_type = "full_text"
+        else:
+            if not abstract:
+                abstract = f"No abstract available for {title}."
+            vector = embeddings.embed_query(abstract)
+            points.append(PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector,
+                payload={
+                    "source": doi,
+                    "title": title,
+                    "text": abstract,
+                    "page": 0,
+                    "authors": authors,
+                    "journal": journal,
+                    "year": year,
+                    "doi": doi,
+                    "url": doi_url,
+                    "ingestion_type": "abstract_only",
+                }
+            ))
+
+        BATCH_SIZE = 50
+        for i in range(0, len(points), BATCH_SIZE):
+            client.upsert(collection_name=COLLECTION_NAME, points=points[i:i + BATCH_SIZE])
+
+        for e in queue:
+            if e["doi"] == doi:
+                e["status"] = "approved"
+                e["approved_at"] = datetime.utcnow().isoformat()
+                e["ingestion_type"] = ingestion_type
+                break
+        _save_queue(queue)
+
+        print(f"[APPROVE] {doi} ingested as {ingestion_type} ({len(points)} chunks)")
+        return {"ok": True, "chunks": len(points), "ingestion_type": ingestion_type}
+
+    except Exception as e:
+        print(f"[APPROVE ERROR] {e}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@admin_app.post("/reject-doc")
+async def reject_doc(request: Request):
+    try:
+        data = await request.json()
+        doi = data.get("doi", "").strip()
+        if not doi:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "doi required"})
+
+        queue = _load_queue()
+        for e in queue:
+            if e["doi"] == doi:
+                e["status"] = "rejected"
+                e["rejected_at"] = datetime.utcnow().isoformat()
+                break
+        _save_queue(queue)
+
+        print(f"[REJECT] {doi}")
+        return {"ok": True}
+
+    except Exception as e:
+        print(f"[REJECT ERROR] {e}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
 def start_admin_server():
