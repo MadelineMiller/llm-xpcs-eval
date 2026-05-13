@@ -23,3 +23,11 @@ LLM_CONFIG = {
     'max_tokens': 2000,        # Anthropic models use max_tokens
     'conversation_memory': 5,
 }
+
+# Reranker uses a faster/cheaper model — only needs to output a JSON index list
+RERANKER_CONFIG = {
+    'model': 'gpt41nano',      # fastest GPT-4.1 model; swap for any model available on Argo
+    'max_candidates': 9999,    # no cap — send all candidates to reranker
+    'preview_chars': 150,      # chars per chunk shown to reranker
+    'max_tokens': 800,
+}

@@ -3,6 +3,7 @@ storage/
 qdrant
 *.json
 .qdrant-initialized
+.files
 
 # Environment variables
 .env
