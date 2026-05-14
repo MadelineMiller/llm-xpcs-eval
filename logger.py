@@ -95,6 +95,9 @@ def log_query(
 
 # ── Error log ─────────────────────────────────────────────────────────────────
 
+def log_reranker_empty(raw_response: str):
+    _errors.warning(f"{_ts()} | RERANKER_EMPTY | raw={raw_response[:300]}")
+
 def log_reranker_fallback(raw_response: str):
     _errors.error(f"{_ts()} | RERANKER_PARSE_FAIL | raw={raw_response[:300]}")
 

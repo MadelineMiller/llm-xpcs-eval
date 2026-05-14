@@ -148,7 +148,7 @@ print("Ready!")
 
 def call_argo_llm(messages):
     """Call Argo API with conversation history."""
-    
+
     payload = {
         "user": ARGO_USER,
         "model": LLM_CONFIG['model'],
@@ -157,7 +157,7 @@ def call_argo_llm(messages):
         "top_p": LLM_CONFIG['top_p'],
         "max_tokens": LLM_CONFIG['max_tokens']
     }
-    
+
     try:
         response = requests.post(ARGO_API_URL, json=payload, timeout=120)
         if not response.ok:
@@ -165,7 +165,7 @@ def call_argo_llm(messages):
             return f"API Error {response.status_code}: {response.text}"
         response.raise_for_status()
         result = response.json()
-        
+
         if 'choices' in result:
             return result['choices'][0]['message']['content']
         elif 'response' in result:
@@ -174,7 +174,7 @@ def call_argo_llm(messages):
             return result['content']
         else:
             return f"Unexpected response format: {result}"
-            
+
     except requests.exceptions.RequestException as e:
         applog.log_api_network_error("argo_llm", e)
         return f"Network error calling Argo API: {str(e)}"
@@ -291,7 +291,7 @@ def rerank_chunks(question: str, candidates: list, weights: dict = None) -> list
             else:
                 # Valid empty response — reranker found nothing relevant; fall back to all
                 print("[RERANKER] Model returned empty relevant list, using all candidates")
-                applog.log_reranker_fallback(text)
+                applog.log_reranker_empty(text)
                 return pool
 
         print("[RERANKER] Could not parse response, using all candidates:", text[:100])
@@ -578,11 +578,13 @@ async def main(message: cl.Message):
     # Tertiary: adjacent chunk retrieval — for each retrieved doc, also fetch neighboring pages
     # so that definitions/context on adjacent pages aren't missed
     doc_pages = {}
+    doc_best_score = {}  # src → highest score among its retrieved chunks
     for point in combined_points:
         src = point.payload.get('source', '')
         page = point.payload.get('page')
         if src and page is not None:
             doc_pages.setdefault(src, set()).add(int(page))
+            doc_best_score[src] = max(doc_best_score.get(src, 0.0), point.score)
 
     adj_added = 0
     print(f"[RETRIEVE] Adjacent fetch: {len(doc_pages)} docs, {len(combined_points)} candidates so far")
@@ -615,7 +617,8 @@ async def main(message: cl.Message):
         )
         for record in adj_records:
             if record.id not in seen_ids:
-                combined_points.append(_SyntheticPoint(record, score=0.80))
+                parent_score = doc_best_score.get(src, 0.80)
+                combined_points.append(_SyntheticPoint(record, score=parent_score * 0.95))
                 seen_ids.add(record.id)
                 adj_added += 1
 
@@ -648,6 +651,7 @@ async def main(message: cl.Message):
     reranked_points = await asyncio.get_event_loop().run_in_executor(
         None, functools.partial(rerank_chunks, message.content, reranked_points, current_weights)
     )
+    reranked_points = reranked_points[:100]
 
     kept = len(reranked_points)
     add_status("Generating answer...", pct=90)
@@ -656,6 +660,7 @@ async def main(message: cl.Message):
     context_parts = []
     sources = []
     seen_titles = set()
+    cite_key_map = {}  # SRC-N → exact element name
 
     for idx, result in enumerate(reranked_points, 1):
         p = result.payload
@@ -666,11 +671,13 @@ async def main(message: cl.Message):
         weight = current_weights.get(source, 50)
 
         display_page = (page + 1) if isinstance(page, int) else page
-        cite_key = f"{title}, p.{display_page}"
+        element_name = f"{title}, p.{display_page}"
+        src_key = f"SRC-{idx}"
+        cite_key_map[src_key] = element_name
         context_parts.append(
-            f"[CITE: {cite_key} | Priority: {weight}/100]\n{text}"
+            f"[CITE: {src_key} | Priority: {weight}/100]\n{text}"
         )
-        sources.append(f"[{idx}] {cite_key}")
+        sources.append(f"[{idx}] {element_name}")
         seen_titles.add(title)
 
 
@@ -698,10 +705,9 @@ INSTRUCTIONS FOR YOUR RESPONSE:
 4. Build your answer by synthesizing information from these passages
 5. After each sentence or claim that uses a source, write on its own new line:
    Source: [CITE key]
-   Copy the CITE key exactly as it appears in the passage header (everything after "CITE: " and before " |").
-   Example — if the header says [CITE: X-Ray Photon Correlation Spectroscopy, p.5 | Priority: ...], write:
-   Source: [X-Ray Photon Correlation Spectroscopy, p.5]
-   Do not shorten, paraphrase, or retype from memory — copy it character-for-character.
+   The CITE key is the short code in the passage header (e.g. SRC-1, SRC-2).
+   Example — if the header says [CITE: SRC-3 | Priority: ...], write:
+   Source: [SRC-3]
 6. Include any formulas or technical details from the passages
 7. If passages discuss related concepts (speckle, coherence, dynamics), explain how they relate to the question
 8. Use LaTeX for math: $inline$ or $$display$$
@@ -733,11 +739,12 @@ Provide a comprehensive, well-cited answer based on the passages."""
         None, functools.partial(call_argo_llm, messages)
     )
 
-    # Strip brackets from citation lines so Chainlit matches element names
-    # "Source: [Title, p.N]" → "Source: Title, p.N"  (clickable)
-    # "[Title]" bare fallback → "Title"
-    answer = re.sub(r'^(Source:\s*)\[([^\]]+)\]\s*$', r'\1\2', answer, flags=re.MULTILINE)
-    answer = re.sub(r'^\[([^\]]+)\]\s*$', r'\1', answer, flags=re.MULTILINE)
+    # Expand SRC-N keys to exact element names so Chainlit can match them
+    def _expand_cite(m):
+        prefix, key = m.group(1), m.group(2).strip()
+        return prefix + cite_key_map.get(key, key)
+
+    answer = re.sub(r'^(Source:\s*)\[([^\]]+)\]\s*$', _expand_cite, answer, flags=re.MULTILINE)
 
     # Log the full query interaction
     applog.log_query(
