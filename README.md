@@ -9,6 +9,7 @@
 * XPCS textbooks and reference materials
 * X-ray Data Booklet
 * Papers from Annual Review of Materials Research (2018) and other XPCS literature
+* Papers downloaded from DESY and ESRF publication websites
 
 ### Key Capabilities
 * Assist users in formulating and refining scientific hypotheses for XPCS experiments
