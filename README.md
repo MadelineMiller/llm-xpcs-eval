@@ -97,11 +97,7 @@ Configure target beamline URLs in the `BEAMLINE_SOURCES` list at the top of `age
 
 <h2><img src="https://img.shields.io/badge/Part_2-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;RAG Chatbot</h2>
 
-## Architecture
-
-![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
-
-### Data Flow
+## Data Flow
 
 #### Ingestion (One-time Setup)
 
@@ -130,7 +126,7 @@ flowchart LR
     style G fill:#1b5e20,color:#a5d6a7,stroke:#2e7d32
 ```
 
-### Authentication
+## Authentication
 
 Login uses ANL LDAP credentials. Configure via `.env`:
 
@@ -141,7 +137,7 @@ LDAP_SERVICE_USER_DN=...
 LDAP_ADMIN_PASSWORD=...
 ```
 
-### Running the Chatbot
+## Running the Chatbot
 
 ```bash
 chainlit run app.py
@@ -153,7 +149,7 @@ chainlit run app.py
 
 A FastAPI admin panel (port 8001) that launches automatically alongside the chatbot. Accessible via a link in the chat welcome message — authenticated via a per-session token.
 
-### Document Weights Tab
+## Document Weights Tab
 
 Controls how aggressively each document is cited in answers:
 
@@ -164,7 +160,7 @@ Controls how aggressively each document is cited in answers:
 
 Supports uploading new PDFs directly from the browser. CrossRef is queried automatically for metadata; if not found, a manual entry form is shown. Uploaded documents are chunked, embedded, and added to Qdrant immediately.
 
-### Review Queue Tab
+## Review Queue Tab
 
 Shows papers submitted by the harvesting agent. For each paper:
 - View title, authors, journal, DOI, agent confidence, and abstract
