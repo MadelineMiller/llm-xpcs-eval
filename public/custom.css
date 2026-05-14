@@ -111,6 +111,28 @@ span.bg-primary.text-primary-foreground.font-semibold {
     background-color: transparent !important;
 }
 
+/* Side panel: ensure text wraps and doesn't overflow */
+[class*="side"],
+[class*="Side"],
+[class*="panel"],
+[class*="Panel"],
+aside,
+aside * {
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    max-width: 100% !important;
+}
+
+/* Specifically target Chainlit's element content area */
+[class*="element"] *,
+[class*="text-content"] *,
+[class*="markdown"] * {
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+}
+
 /* Hide the attach file button */
 button[id*="upload"],
 button[class*="attach"],

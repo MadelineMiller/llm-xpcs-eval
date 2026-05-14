@@ -114,3 +114,27 @@ const observer = new MutationObserver(() => {
 
 observer.observe(document.body, { childList: true, subtree: true });
 
+// Side panel: widen when it opens (CSS-only width, no node moves)
+(function() {
+    'use strict';
+
+    const sideObserver = new MutationObserver(() => {
+        document.querySelectorAll('details > summary').forEach(summary => {
+            if (summary.dataset.widened) return;
+            summary.dataset.widened = 'true';
+            let container = summary.parentElement;
+            for (let i = 0; i < 12; i++) {
+                if (!container || container === document.body) break;
+                if (container.offsetWidth > 200 && container.offsetWidth < window.innerWidth * 0.85) {
+                    container.style.minWidth = '540px';
+                    container.style.width = '42vw';
+                    container.style.maxWidth = '780px';
+                    break;
+                }
+                container = container.parentElement;
+            }
+        });
+    });
+
+    sideObserver.observe(document.body, { childList: true, subtree: true });
+})();

@@ -1,4 +1,9 @@
-doc_weights.json
+# db & document related
+storage/
+qdrant
+*.json
+.qdrant-initialized
+.files
 
 # Environment variables
 .env
@@ -23,6 +28,7 @@ chainlit.md
 
 # Documents (large files)
 context_docs/
+agent/pdfs/
 
 # macOS
 .DS_Store

@@ -1,7 +1,11 @@
-from admin import launch_admin
+from admin.admin import launch_admin
+from admin.weights_manager import load_weights, save_weights, get_all_docs, apply_weights
 launch_admin()
 
+import asyncio
+import functools
 import os
+import json
 import requests
 
 import chainlit as cl
@@ -9,14 +13,13 @@ from dotenv import load_dotenv
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from qdrant_client import QdrantClient
 
-from config import RETRIEVAL_CONFIG, LLM_CONFIG
-
-from weights_manager import load_weights, save_weights, get_all_docs, apply_weights
+from config import RETRIEVAL_CONFIG, LLM_CONFIG, RERANKER_CONFIG
 
 import ldap
 
 import secrets
 from auth_tokens import admin_auth_tokens, add_token, remove_token
+import logger as applog
 
 
 # ============================================================================
@@ -26,40 +29,49 @@ from auth_tokens import admin_auth_tokens, add_token, remove_token
 import re
 
 
+_TITLE_LOWERCASE = {
+    'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet',
+    'at', 'by', 'in', 'of', 'on', 'to', 'up', 'as', 'via', 'vs',
+}
+
 def clean_title(title):
-    """Strip MathML/XML tags and HTML from CrossRef titles."""
+    """Strip MathML/XML tags and apply title case to CrossRef titles."""
     if not title:
         return title
-    # remove XML/HTML tags
     title = re.sub(r'<[^>]+>', '', title)
-    # collapse extra whitespace
     title = re.sub(r'\s+', ' ', title).strip()
-    return title
+    # Apply title case, keeping small words lowercase except at the start
+    words = title.split()
+    cased = [
+        word if (i > 0 and word.lower() in _TITLE_LOWERCASE) else word.capitalize()
+        for i, word in enumerate(words)
+    ]
+    return ' '.join(cased)
 
-def format_sources_with_scores(results):
-    """Format sources with full citation metadata"""
-    sources_text = "**Sources consulted:**\n\n"
-
-    seen = set()
-    num = 0
+def build_source_elements(results):
+    """Build one side-panel Text element per chunk, named 'Title, p.N'.
+    The LLM cites as 'Source: [Title, p.N]' so each citation opens exactly that chunk."""
+    elements = []
+    seen_names = set()
+    source_chunks = {}
 
     for result in results:
         p = result.payload
+        title = clean_title(p.get("title")) or os.path.basename(p["source"])
+        raw_page = p.get("page", "?")
+        display_page = (raw_page + 1) if isinstance(raw_page, int) else raw_page
+        name = f"{title}, p.{display_page}"
 
-        title   = clean_title(p.get("title")) or os.path.basename(p["source"])
+        if name in seen_names:
+            continue
+        seen_names.add(name)
+
         authors = p.get("authors") or []
         journal = p.get("journal") or ""
-        year    = p.get("year")    or ""
-        url     = p.get("url")     or ""
-        doi     = p.get("doi")     or ""
-        page    = p.get("page", "")
+        year    = p.get("year") or ""
+        doi     = p.get("doi") or ""
+        url     = p.get("url") or ""
 
-        if title in seen:
-            continue
-        seen.add(title)
-        num += 1
-
-        # author string
         if len(authors) > 2:
             author_str = f"{authors[0]} et al."
         elif authors:
@@ -67,24 +79,34 @@ def format_sources_with_scores(results):
         else:
             author_str = ""
 
-        # build entry
-        sources_text += "---\n"
-        sources_text += f"**{title}**  \n"
-
+        meta_lines = []
         if author_str:
-            sources_text += f"**Author(s):** {author_str}  \n"
+            meta_lines.append(f"**Authors:** {author_str}")
         if journal:
-            sources_text += f"**Journal:** {journal}  \n"
+            meta_lines.append(f"**Journal:** {journal}")
+        meta_lines.append(f"**Page:** {display_page}")
         if year:
-            sources_text += f"**Year:** {year}  \n"
-        if page:
-            sources_text += f"**Page:** {page}  \n"
+            meta_lines.append(f"**Year:** {year}")
         if doi and url:
-            sources_text += f"**DOI:** [{doi}]({url})  \n"
+            meta_lines.append(f"**DOI:** [{doi}]({url})")
+        elif doi:
+            meta_lines.append(f"**DOI:** {doi}")
 
-        sources_text += "\n"
+        chunk_text = p.get("text", "")
+        side_content = (
+            "\n\n".join(meta_lines)
+            + "\n\n<br>\n\n"
+            + f"<details><summary>📄 Show chunk text (p.{display_page})</summary>\n\n"
+            + "*Extracted directly from the PDF — formatting may be inconsistent.*\n\n"
+            + "---\n\n"
+            + chunk_text
+            + "\n\n</details>"
+        )
 
-    return sources_text
+        elements.append(cl.Text(name=name, content=side_content, display="side"))
+        source_chunks[name] = [p]
+
+    return elements, [], source_chunks
 
 
 # ============================================================================
@@ -99,6 +121,9 @@ LDAP_SERVER = os.getenv("LDAP_SERVER", "")
 LDAP_BASE_DN = os.getenv("LDAP_BASE_DN", "")
 LDAP_SERVICE_USER_DN = os.getenv("LDAP_SERVICE_USER_DN", "")
 LDAP_ADMIN_PASSWORD = os.getenv("LDAP_ADMIN_PASSWORD", "")
+
+# admin ranking system page
+APP_HOST = os.getenv("APP_HOST", "http://localhost")
 
 print("Initializing XPCS Hypothesis Evaluator...")
 embeddings = HuggingFaceEmbeddings(
@@ -134,9 +159,9 @@ def call_argo_llm(messages):
     }
     
     try:
-        response = requests.post(ARGO_API_URL, json=payload, timeout=60)
+        response = requests.post(ARGO_API_URL, json=payload, timeout=120)
         if not response.ok:
-            print(f"Argo API Error {response.status_code}: {response.text}")
+            applog.log_api_error("argo_llm", response.status_code, response.text)
             return f"API Error {response.status_code}: {response.text}"
         response.raise_for_status()
         result = response.json()
@@ -151,9 +176,131 @@ def call_argo_llm(messages):
             return f"Unexpected response format: {result}"
             
     except requests.exceptions.RequestException as e:
+        applog.log_api_network_error("argo_llm", e)
         return f"Network error calling Argo API: {str(e)}"
     except Exception as e:
+        applog.log_error("argo_llm", str(e))
         return f"Error calling Argo API: {str(e)}"
+
+
+def extract_keywords(question: str) -> list:
+    """Extract distinctive terms from the question for keyword-based retrieval."""
+    stop_words = {
+        'what', 'how', 'why', 'when', 'where', 'which', 'who', 'is', 'are',
+        'the', 'a', 'an', 'of', 'in', 'on', 'at', 'to', 'for', 'with',
+        'that', 'this', 'these', 'those', 'and', 'or', 'but', 'not', 'from',
+        'does', 'define', 'describe', 'explain', 'tell', 'give', 'about',
+        'function', 'equation', 'formula', 'value', 'between', 'using',
+    }
+    # Acronyms: all-caps words of any length (XIFS, XPCS, SAXS, etc.)
+    acronyms = re.findall(r'\b[A-Z]{2,}\b', question)
+
+    # Long distinctive words (> 5 chars, not stop words)
+    words = re.findall(r'[a-zA-Z]+', question.lower())
+    long_words = [w for w in words if len(w) > 5 and w not in stop_words]
+    long_words = sorted(set(long_words), key=len, reverse=True)[:2]
+
+    return list(set(a.lower() for a in acronyms)) + long_words
+
+
+def rerank_chunks(question: str, candidates: list, weights: dict = None) -> list:
+    """Use LLM to filter retrieved chunks down to those that actually answer the question.
+
+    weights: document weight dict (source filename -> 0-100). Higher-weight documents
+    get a lower relevance threshold — include if possibly relevant, not just clearly relevant.
+    """
+    if not candidates:
+        return []
+
+    if weights is None:
+        weights = {}
+
+    # Cap candidates to keep the reranker prompt small and fast
+    cap = RERANKER_CONFIG["max_candidates"]
+    pool = candidates[:cap]
+    preview = RERANKER_CONFIG["preview_chars"]
+
+    passages = []
+    for i, pt in enumerate(pool):
+        source = os.path.basename(pt.payload.get("source", ""))
+        page = pt.payload.get("page", "?")
+        w = weights.get(source, 50)
+        text_preview = pt.payload.get("text", "")[:preview]
+        passages.append(f"{i + 1}. [Priority: {w}/100] {text_preview}")
+        print(f"[RERANKER] #{i+1:3d} | {source} p.{page} | {repr(text_preview[:80])}")
+    passages_str = "\n\n".join(passages)
+
+    prompt = (
+        "You are a relevance filter for a scientific Q&A system about XPCS "
+        "(X-ray Photon Correlation Spectroscopy).\n\n"
+        "Question: " + question + "\n\n"
+        "Below are " + str(len(pool)) + " passages from scientific literature, each tagged with "
+        "a Priority score (0-100) set by the beamline scientist.\n\n"
+        "Selection rules:\n"
+        "- Priority ≥ 70: include if the passage is relevant OR possibly relevant to the question.\n"
+        "- Priority 30–69: include only if clearly relevant.\n"
+        "- Priority < 30: include only if directly and specifically relevant.\n\n"
+        + passages_str + "\n\n"
+        "Respond with ONLY a raw JSON object — no markdown, no code blocks, no explanation.\n"
+        "Example: {\"relevant\": [1, 3, 5]}\n"
+        "If none are relevant: {\"relevant\": []}"
+    )
+
+    model = RERANKER_CONFIG["model"]
+    if "gemini" in model:
+        token_key = "max_output_tokens"
+    elif model.startswith("gpt4") or model.startswith("gpt5") or model.startswith("o"):
+        token_key = "max_completion_tokens"
+    else:
+        token_key = "max_tokens"
+    payload = {
+        "user": ARGO_USER,
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "top_p": 1.0,
+        token_key: RERANKER_CONFIG["max_tokens"],
+    }
+
+    try:
+        response = requests.post(ARGO_API_URL, json=payload, timeout=60)
+        response.raise_for_status()
+        result = response.json()
+
+        if "choices" in result:
+            text = result["choices"][0]["message"]["content"]
+        elif "response" in result:
+            text = result["response"]
+        elif "content" in result:
+            text = result["content"]
+        else:
+            return candidates
+
+        # Strip markdown code fences if the model wrapped the JSON anyway
+        text = re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=re.IGNORECASE)
+        text = re.sub(r'\s*```$', '', text.strip())
+
+        # Extract indices — works even on truncated JSON (no closing ]} needed)
+        array_match = re.search(r'"relevant"\s*:\s*\[([^\]]*)', text, re.DOTALL)
+        if array_match:
+            indices = [int(n) for n in re.findall(r'\d+', array_match.group(1))]
+            if indices:
+                filtered = [pool[i - 1] for i in indices if 1 <= i <= len(pool)]
+                print("[RERANKER] Kept", len(filtered), "of", len(pool), "chunks")
+                return filtered
+            else:
+                # Valid empty response — reranker found nothing relevant; fall back to all
+                print("[RERANKER] Model returned empty relevant list, using all candidates")
+                applog.log_reranker_fallback(text)
+                return pool
+
+        print("[RERANKER] Could not parse response, using all candidates:", text[:100])
+        applog.log_reranker_fallback(text)
+    except Exception as e:
+        print("[RERANKER] Error:", e, "— falling back to all candidates")
+        applog.log_reranker_error(e)
+
+    return pool
 
 
 # ============================================================================
@@ -169,6 +316,7 @@ def auth_callback(username: str, password: str):
     # Sanitize username to prevent LDAP injection
     if not username.isalnum():
         print(f"[AUTH] Invalid username format: {username}")
+        applog.log_login_failure(username, "invalid_username_format")
         return None
 
     try:
@@ -185,12 +333,14 @@ def auth_callback(username: str, password: str):
         user_dn, user_info = result[0]
         if not user_dn:
             print(f"[AUTH] User not found: {username}")
+            applog.log_login_failure(username, "user_not_found")
             return None
 
         try:
             conn.simple_bind_s(user_dn, password)
         except ldap.INVALID_CREDENTIALS:
             print(f"[AUTH] Invalid password for: {username}")
+            applog.log_login_failure(username, "invalid_credentials")
             return None
 
         first_name = user_info.get("givenName", [b""])[0].decode()
@@ -198,6 +348,7 @@ def auth_callback(username: str, password: str):
         email = user_info.get("mail", [b""])[0].decode()
 
         print(f"[AUTH] Login successful: {username} ({first_name} {last_name})")
+        applog.log_login_success(username, f"{first_name} {last_name}", email)
 
         return cl.User(
             identifier=username,
@@ -206,17 +357,20 @@ def auth_callback(username: str, password: str):
 
     except Exception as e:
         print(f"[AUTH ERROR] {e}")
+        applog.log_error("AUTH_LDAP", str(e))
         return None
 
 
 @cl.on_chat_start
 async def start():
+    user = cl.user_session.get("user")
+    username = getattr(user, "identifier", "unknown") if user else "unknown"
+    applog.log_session_start(username)
 
     # Generate admin access token for this session
     token = secrets.token_urlsafe(32)
     add_token(token)
     cl.user_session.set("admin_token", token)
-
 
     cl.user_session.set("conversation_history", [])
     
@@ -238,7 +392,12 @@ When you receive context passages from XPCS literature, you MUST use them to con
    - Combine information from multiple passages to build a complete answer
 
 2. **Citation Requirements:**
-   - Cite sources inline by title: "XPCS measures dynamics via speckle fluctuations [Source: X-ray photon correlation spectroscopy]"
+   - After each sentence or claim, write the citation on its own new line in this exact format:
+     Source: [Exact Paper Title, p.N]
+     where N is the page number from the context. Example:
+     "XPCS measures dynamics via speckle fluctuations.
+     Source: [X-Ray Photon Correlation Spectroscopy, p.5]"
+   - Use the exact title as it appears in the context — do not shorten or paraphrase it.
    - Include formulas exactly as written: $g^{(2)}(q,t) = \langle I(q,0)I(q,t) \rangle / \langle I(q) \rangle^2$
    - Quote key sentences when appropriate
 
@@ -311,22 +470,35 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "My answers are based on XPCS research papers and textbooks.\n\n"
             "I'll cite sources so you can verify and explore further."
             "\n\n---\n\n"
-            f"⚙️ **Admin:** [Manage document weights](http://localhost:8001?token={token})"
+            f"⚙️ **Admin:** [Manage document weights or review the document queue]({APP_HOST}:8001?token={token})"
     ).send()
 
 @cl.on_chat_end
 async def on_chat_end():
-    token = cl.user_session.get("admin_token")
-    if token:
-        remove_token(token)
-        print(f"[AUTH] Token invalidated on session end")
+    user = cl.user_session.get("user")
+    username = getattr(user, "identifier", "unknown") if user else "unknown"
+    applog.log_session_end(username)
 
 @cl.on_message
 async def main(message: cl.Message):
 
-    msg = cl.Message(content="🔍 Searching XPCS literature and generating answer...")
+    def _bar(pct: int) -> str:
+        filled = round(20 * pct / 100)
+        return f"`{'█' * filled}{'░' * (20 - filled)}` {pct}%"
+
+    status_lines = []
+
+    def add_status(line: str, pct: int):
+        status_lines.append(line)
+        msg.content = _bar(pct) + "\n\n" + "\n\n".join(status_lines)
+
+    msg = cl.Message(content=_bar(10) + "\n\nSearching XPCS literature...")
+    status_lines.append("Searching XPCS literature...")
     await msg.send()
-    
+
+    _user = cl.user_session.get("user")
+    _username = getattr(_user, "identifier", "unknown") if _user else "unknown"
+
     conversation_history = cl.user_session.get("conversation_history")
     system_prompt = cl.user_session.get("system_prompt")
 
@@ -349,70 +521,159 @@ async def main(message: cl.Message):
     
     # Search for relevant context
     query_vector = embeddings.embed_query(expanded_query)
+
+    base_filter = {
+        "must_not": [{"key": "source", "match": {"text": "x-ray-data-booklet"}}]
+    }
+
+    # Primary: broad semantic search
     results = client.query_points(
         collection_name=os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents'),
         query=query_vector,
         limit=RETRIEVAL_CONFIG['num_results'],
-        query_filter={
-            "must_not": [
-                {
-                    "key": "source",
-                    "match": {
-                        "text": "x-ray-data-booklet"
-                    }
-                }
-            ]
-        }
+        query_filter=base_filter,
     )
+    combined_points = list(results.points)
+    seen_ids = {p.id for p in combined_points}
+    vec_count = len(combined_points)
+
+    add_status("Searching by keyword...", pct=30)
+    await msg.update()
+
+    from qdrant_client.models import Filter, FieldCondition, MatchText, MatchValue
+
+    class _SyntheticPoint:
+        """Wraps a scroll Record to be compatible with apply_weights (.id, .score, .payload)."""
+        def __init__(self, record, score):
+            self.id = record.id
+            self.score = score
+            self.payload = record.payload
+
+    COLLECTION = os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents')
+
+    # Secondary: keyword scroll — finds chunks containing ALL key terms regardless of vector rank
+    keywords = extract_keywords(message.content)
+    kw_added = 0
+    if keywords:
+        kw_filter = Filter(
+            must_not=[FieldCondition(key="source", match=MatchValue(value="x-ray-data-booklet"))],
+            must=[FieldCondition(key="text", match=MatchText(text=kw)) for kw in keywords],
+        )
+        kw_records, _ = client.scroll(
+            collection_name=COLLECTION,
+            scroll_filter=kw_filter,
+            limit=30,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for record in kw_records:
+            if record.id not in seen_ids:
+                combined_points.append(_SyntheticPoint(record, score=0.9))
+                seen_ids.add(record.id)
+                kw_added += 1
+
+    add_status("Collecting surrounding context from relevant papers...", pct=55)
+    await msg.update()
+
+    # Tertiary: adjacent chunk retrieval — for each retrieved doc, also fetch neighboring pages
+    # so that definitions/context on adjacent pages aren't missed
+    doc_pages = {}
+    for point in combined_points:
+        src = point.payload.get('source', '')
+        page = point.payload.get('page')
+        if src and page is not None:
+            doc_pages.setdefault(src, set()).add(int(page))
+
+    adj_added = 0
+    print(f"[RETRIEVE] Adjacent fetch: {len(doc_pages)} docs, {len(combined_points)} candidates so far")
+    for src, pages in doc_pages.items():
+        adjacent_pages = set()
+        for page in pages:
+            if page > 0:
+                adjacent_pages.add(page - 1)
+            adjacent_pages.add(page + 1)
+        adjacent_pages -= pages  # don't re-fetch already-retrieved pages
+
+        if not adjacent_pages:
+            continue
+
+        adj_filter = Filter(
+            must=[
+                FieldCondition(key="source", match=MatchValue(value=src)),
+            ],
+            should=[
+                FieldCondition(key="page", match=MatchValue(value=p))
+                for p in adjacent_pages
+            ],
+        )
+        adj_records, _ = client.scroll(
+            collection_name=COLLECTION,
+            scroll_filter=adj_filter,
+            limit=10,
+            with_payload=True,
+            with_vectors=False,
+        )
+        for record in adj_records:
+            if record.id not in seen_ids:
+                combined_points.append(_SyntheticPoint(record, score=0.80))
+                seen_ids.add(record.id)
+                adj_added += 1
+
+    print("Keywords:", keywords, "| kw added:", kw_added, "| adjacent added:", adj_added)
+
+    total = len(combined_points)
+    add_status("Checking which passages are most relevant to your question...", pct=75)
+    await msg.update()
+
+    # Wrap as a simple namespace so apply_weights works unchanged
+    class _Results:
+        def __init__(self, points):
+            self.points = points
+
+    results = _Results(combined_points)
 
     current_weights = load_weights()
 
     # Apply weights and re-sort by priority
     reranked_points = apply_weights(results.points, current_weights)
 
-    
-    # DEBUG: Print all scores
-    print(f"\n{'='*60}")
-    print(f"Query: {message.content}")
-    print(f"Retrieved {len(results.points)} results, {len(reranked_points)} after weight filter:")
+    print("\nQuery:", message.content)
+    print("Retrieved", len(reranked_points), "candidates from Qdrant")
     for idx, result in enumerate(reranked_points, 1):
         source = os.path.basename(result.payload['source'])
-        weight = current_weights.get(source, 50)
-        print(f"  [{idx}] Similarity: {result.score:.4f} | Weight: {weight}/100 | {source}")
-    print(f"Threshold: {RETRIEVAL_CONFIG['relevance_threshold']}")
-    print(f"{'='*60}\n")
+        print("  [" + str(idx) + "] score=" + str(round(result.score, 4)) + " | " + source)
 
-    # Adaptive threshold
-    adaptive_threshold = min(
-        RETRIEVAL_CONFIG['relevance_threshold'],
-        max(0.55, reranked_points[0].score - 0.05) if reranked_points else 0.6
+    # LLM reranker: filter candidates to those that actually answer the question
+    # Run in executor so the async event loop (and WebSocket keep-alive) stays alive
+    reranked_points = await asyncio.get_event_loop().run_in_executor(
+        None, functools.partial(rerank_chunks, message.content, reranked_points, current_weights)
     )
 
-    print(f"Using adaptive threshold: {adaptive_threshold:.4f}")
+    kept = len(reranked_points)
+    add_status("Generating answer...", pct=90)
+    await msg.update()
 
     context_parts = []
     sources = []
     seen_titles = set()
 
     for idx, result in enumerate(reranked_points, 1):
-        if result.score < adaptive_threshold:
-            continue
-
         p = result.payload
         source = os.path.basename(p['source'])
         page = p['page']
         text = p['text']
-        title = p.get('title') or source
+        title = clean_title(p.get('title')) or source
         weight = current_weights.get(source, 50)
 
+        display_page = (page + 1) if isinstance(page, int) else page
+        cite_key = f"{title}, p.{display_page}"
         context_parts.append(
-            f"[{title}, Page {page}, Priority: {weight}/100]\n{text}"
+            f"[CITE: {cite_key} | Priority: {weight}/100]\n{text}"
         )
-        sources.append(f"[{idx}] {title} (Page {page})")
+        sources.append(f"[{idx}] {cite_key}")
         seen_titles.add(title)
 
-    cl.user_session.set("last_context", context_parts)
-    cl.user_session.set("last_results", reranked_points[:len(sources)])
+
 
     # Build context message for LLM
     if context_parts:
@@ -435,7 +696,12 @@ INSTRUCTIONS FOR YOUR RESPONSE:
 2. Prioritize information from earlier sources — they are from higher-priority documents as rated by the beamline scientist
 3. When sources conflict, prefer the higher-priority (earlier) source
 4. Build your answer by synthesizing information from these passages
-5. Cite sources inline using the document title in brackets, e.g. [Source: X-ray photon correlation spectroscopy]
+5. After each sentence or claim that uses a source, write on its own new line:
+   Source: [CITE key]
+   Copy the CITE key exactly as it appears in the passage header (everything after "CITE: " and before " |").
+   Example — if the header says [CITE: X-Ray Photon Correlation Spectroscopy, p.5 | Priority: ...], write:
+   Source: [X-Ray Photon Correlation Spectroscopy, p.5]
+   Do not shorten, paraphrase, or retype from memory — copy it character-for-character.
 6. Include any formulas or technical details from the passages
 7. If passages discuss related concepts (speckle, coherence, dynamics), explain how they relate to the question
 8. Use LaTeX for math: $inline$ or $$display$$
@@ -445,17 +711,14 @@ DO NOT say "the literature doesn't provide information" - you have {len(context_
 Provide a comprehensive, well-cited answer based on the passages."""
         
     else:
-        context_message = f"""No passages met the relevance threshold ({adaptive_threshold:.2f}).
-
-Top result score: {results.points[0].score:.4f}
-Source: {os.path.basename(results.points[0].payload['source'])}
-
-USER QUESTION: {message.content}
-
-Since no highly relevant passages were retrieved, respond with:
-"I don't have specific information about this in the XPCS literature database. For [topic], please consult [appropriate resource]."
-
-Do NOT attempt to answer from general knowledge."""
+        context_message = (
+            "No relevant passages were found for this question.\n\n"
+            "USER QUESTION: " + message.content + "\n\n"
+            "Since no relevant passages were retrieved, respond with:\n"
+            "\"I don't have specific information about this in the XPCS literature database. "
+            "For [topic], please consult [appropriate resource].\"\n\n"
+            "Do NOT attempt to answer from general knowledge."
+        )
     
     # Build messages for Argo API
     messages = [system_prompt]
@@ -465,65 +728,72 @@ Do NOT attempt to answer from general knowledge."""
         "content": context_message
     })
     
-    # Call Argo LLM
-    answer = call_argo_llm(messages)
-    
+    # Call Argo LLM — run in executor so the WebSocket keep-alive isn't blocked
+    answer = await asyncio.get_event_loop().run_in_executor(
+        None, functools.partial(call_argo_llm, messages)
+    )
+
+    # Strip brackets from citation lines so Chainlit matches element names
+    # "Source: [Title, p.N]" → "Source: Title, p.N"  (clickable)
+    # "[Title]" bare fallback → "Title"
+    answer = re.sub(r'^(Source:\s*)\[([^\]]+)\]\s*$', r'\1\2', answer, flags=re.MULTILINE)
+    answer = re.sub(r'^\[([^\]]+)\]\s*$', r'\1', answer, flags=re.MULTILINE)
+
+    # Log the full query interaction
+    applog.log_query(
+        username=_username,
+        question=message.content,
+        keywords=keywords,
+        vec_count=vec_count,
+        kw_added=kw_added,
+        adj_added=adj_added,
+        kept=kept,
+        sources=[
+            f"{p.payload.get('title') or os.path.basename(p.payload.get('source', ''))} (page {p.payload.get('page', '?')})"
+            for p in reranked_points
+        ],
+        context="\n\n".join(context_parts),
+        answer=answer,
+    )
+
     # Update conversation history
     conversation_history.append({"role": "user", "content": message.content})
     conversation_history.append({"role": "assistant", "content": answer})
     cl.user_session.set("conversation_history", conversation_history)
     
-    # Format sources
-    sources_with_scores = format_sources_with_scores(reranked_points[:len(sources)])
-    
-    # Check if LLM acknowledged missing information or out of scope question
-    missing_info_phrases = [
-        "does not contain specific information",
-        "doesn't contain specific information",
-        "don't have specific information",
-        "do not contain any information",  
-        "passages do not contain",      
-        "provided passages do not",   
-        "literature does not provide",
-        "literature doesn't provide",
-        "no specific information",
-        "not found in the literature",
-        "I apologize"
-    ]
-    
-    acknowledged_missing = any(phrase.lower() in answer.lower() for phrase in missing_info_phrases)
-    
-    # Conditionally create "Show Context" button
-    if acknowledged_missing or not sources:
-        actions = []
-        sources_with_scores = ""
-    else:
-        actions = [
-            cl.Action(
-                name="show_context",
-                payload={"action": "show_context"},
-                label="📄 Show Retrieved Context",
-                description="See the exact passages used to generate this answer"
-            )
+    # Build source side-panel elements
+    acknowledged_missing = any(
+        phrase.lower() in answer.lower() for phrase in [
+            "does not contain specific information",
+            "doesn't contain specific information",
+            "don't have specific information",
+            "do not contain any information",
+            "passages do not contain",
+            "provided passages do not",
+            "literature does not provide",
+            "literature doesn't provide",
+            "no specific information",
+            "not found in the literature",
+            "I apologize",
         ]
-    
-    # Format final response
-    if sources:
-        response = f"""{answer}
+    )
 
----
-
-{sources_with_scores}"""
+    if sources and not acknowledged_missing:
+        source_elements, source_actions, source_chunks = build_source_elements(reranked_points[:len(sources)])
+        cl.user_session.set("source_chunks", source_chunks)
+        response = answer
     else:
-        response = f"""{answer}
+        source_elements = []
+        source_actions = []
+        if not sources:
+            response = answer + "\n\n---\n\n**Note:** No relevant passages were found in the literature database."
+        else:
+            response = answer
 
----
-
-**Note:** No passages met the relevance threshold of {adaptive_threshold:.2%}."""
-    
     msg.content = response
-    msg.actions = actions
-    
+    msg.elements = source_elements
+    msg.actions = source_actions
+
     await msg.update()
 
 
@@ -531,25 +801,4 @@ Do NOT attempt to answer from general knowledge."""
 # ACTION CALLBACKS
 # ============================================================================
 
-@cl.action_callback("show_context")
-async def on_show_context(action):
-    """Handle the "Show Retrieved Context" button click"""
-    context_parts = cl.user_session.get("last_context")
-    results = cl.user_session.get("last_results")
-
-    if not context_parts:
-        await cl.Message(
-            content="No context available. Please ask a question first."
-        ).send()
-        return
-
-    context_display = "# Retrieved Context Passages\n\n"
-    context_display += "*These are the raw text chunks retrieved from the vector database that were used to generate the answer above.*\n\n"
-    context_display += "=" * 65 + "\n\n"
-
-    for part, result in zip(context_parts, results):
-        context_display += f"{part}\n\n"
-        context_display += "-" * 80 + "\n\n"
-
-    await cl.Message(content=context_display).send()
 
