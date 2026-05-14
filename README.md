@@ -140,7 +140,8 @@ LDAP_ADMIN_PASSWORD=...
 ## Running the Chatbot
 
 ```bash
-chainlit run app.py
+conda activate xpcs-llm
+chainlit run app.py --host 0.0.0.0 --port 8000
 ```
 
 ---
