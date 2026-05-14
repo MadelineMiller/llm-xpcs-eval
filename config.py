@@ -27,7 +27,7 @@ LLM_CONFIG = {
 # Reranker uses a faster/cheaper model — only needs to output a JSON index list
 RERANKER_CONFIG = {
     'model': 'gpt41nano',      # fastest GPT-4.1 model; swap for any model available on Argo
-    'max_candidates': 9999,    # no cap — send all candidates to reranker
-    'preview_chars': 150,      # chars per chunk shown to reranker
+    'max_candidates': 100,     # top-N by score sent to reranker
+    'preview_chars': 800,      # chars per chunk shown to reranker (chunk size is 1000)
     'max_tokens': 800,
 }

@@ -2,6 +2,8 @@ from admin.admin import launch_admin
 from admin.weights_manager import load_weights, save_weights, get_all_docs, apply_weights
 launch_admin()
 
+import asyncio
+import functools
 import os
 import json
 import requests
@@ -82,6 +84,7 @@ def build_source_elements(results):
             meta_lines.append(f"**Authors:** {author_str}")
         if journal:
             meta_lines.append(f"**Journal:** {journal}")
+        meta_lines.append(f"**Page:** {display_page}")
         if year:
             meta_lines.append(f"**Year:** {year}")
         if doi and url:
@@ -92,7 +95,8 @@ def build_source_elements(results):
         chunk_text = p.get("text", "")
         side_content = (
             "\n\n".join(meta_lines)
-            + f"\n\n<details><summary>📄 Show chunk text (p.{display_page})</summary>\n\n"
+            + "\n\n<br>\n\n"
+            + f"<details><summary>📄 Show chunk text (p.{display_page})</summary>\n\n"
             + "*Extracted directly from the PDF — formatting may be inconsistent.*\n\n"
             + "---\n\n"
             + chunk_text
@@ -199,27 +203,43 @@ def extract_keywords(question: str) -> list:
     return list(set(a.lower() for a in acronyms)) + long_words
 
 
-def rerank_chunks(question: str, candidates: list) -> list:
-    """Use LLM to filter retrieved chunks down to those that actually answer the question."""
+def rerank_chunks(question: str, candidates: list, weights: dict = None) -> list:
+    """Use LLM to filter retrieved chunks down to those that actually answer the question.
+
+    weights: document weight dict (source filename -> 0-100). Higher-weight documents
+    get a lower relevance threshold — include if possibly relevant, not just clearly relevant.
+    """
     if not candidates:
         return []
+
+    if weights is None:
+        weights = {}
 
     # Cap candidates to keep the reranker prompt small and fast
     cap = RERANKER_CONFIG["max_candidates"]
     pool = candidates[:cap]
     preview = RERANKER_CONFIG["preview_chars"]
 
-    passages = [str(i + 1) + ". " + pool[i].payload.get("text", "")[:preview]
-                for i in range(len(pool))]
+    passages = []
+    for i, pt in enumerate(pool):
+        source = os.path.basename(pt.payload.get("source", ""))
+        page = pt.payload.get("page", "?")
+        w = weights.get(source, 50)
+        text_preview = pt.payload.get("text", "")[:preview]
+        passages.append(f"{i + 1}. [Priority: {w}/100] {text_preview}")
+        print(f"[RERANKER] #{i+1:3d} | {source} p.{page} | {repr(text_preview[:80])}")
     passages_str = "\n\n".join(passages)
 
     prompt = (
         "You are a relevance filter for a scientific Q&A system about XPCS "
         "(X-ray Photon Correlation Spectroscopy).\n\n"
         "Question: " + question + "\n\n"
-        "Below are " + str(len(pool)) + " passages retrieved from scientific literature. "
-        "Identify which passages contain information that directly helps answer the question. "
-        "Be strict — only select passages that contain relevant information.\n\n"
+        "Below are " + str(len(pool)) + " passages from scientific literature, each tagged with "
+        "a Priority score (0-100) set by the beamline scientist.\n\n"
+        "Selection rules:\n"
+        "- Priority ≥ 70: include if the passage is relevant OR possibly relevant to the question.\n"
+        "- Priority 30–69: include only if clearly relevant.\n"
+        "- Priority < 30: include only if directly and specifically relevant.\n\n"
         + passages_str + "\n\n"
         "Respond with ONLY a raw JSON object — no markdown, no code blocks, no explanation.\n"
         "Example: {\"relevant\": [1, 3, 5]}\n"
@@ -260,7 +280,7 @@ def rerank_chunks(question: str, candidates: list) -> list:
         text = re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=re.IGNORECASE)
         text = re.sub(r'\s*```$', '', text.strip())
 
-        # Extract indices from the array — works even on truncated JSON (no closing ]} needed)
+        # Extract indices — works even on truncated JSON (no closing ]} needed)
         array_match = re.search(r'"relevant"\s*:\s*\[([^\]]*)', text, re.DOTALL)
         if array_match:
             indices = [int(n) for n in re.findall(r'\d+', array_match.group(1))]
@@ -268,6 +288,11 @@ def rerank_chunks(question: str, candidates: list) -> list:
                 filtered = [pool[i - 1] for i in indices if 1 <= i <= len(pool)]
                 print("[RERANKER] Kept", len(filtered), "of", len(pool), "chunks")
                 return filtered
+            else:
+                # Valid empty response — reranker found nothing relevant; fall back to all
+                print("[RERANKER] Model returned empty relevant list, using all candidates")
+                applog.log_reranker_fallback(text)
+                return pool
 
         print("[RERANKER] Could not parse response, using all candidates:", text[:100])
         applog.log_reranker_fallback(text)
@@ -453,10 +478,6 @@ async def on_chat_end():
     user = cl.user_session.get("user")
     username = getattr(user, "identifier", "unknown") if user else "unknown"
     applog.log_session_end(username)
-    token = cl.user_session.get("admin_token")
-    if token:
-        remove_token(token)
-        print(f"[AUTH] Token invalidated on session end for user '{username}'")
 
 @cl.on_message
 async def main(message: cl.Message):
@@ -623,7 +644,10 @@ async def main(message: cl.Message):
         print("  [" + str(idx) + "] score=" + str(round(result.score, 4)) + " | " + source)
 
     # LLM reranker: filter candidates to those that actually answer the question
-    reranked_points = rerank_chunks(message.content, reranked_points)
+    # Run in executor so the async event loop (and WebSocket keep-alive) stays alive
+    reranked_points = await asyncio.get_event_loop().run_in_executor(
+        None, functools.partial(rerank_chunks, message.content, reranked_points, current_weights)
+    )
 
     kept = len(reranked_points)
     add_status("Generating answer...", pct=90)
@@ -642,10 +666,11 @@ async def main(message: cl.Message):
         weight = current_weights.get(source, 50)
 
         display_page = (page + 1) if isinstance(page, int) else page
+        cite_key = f"{title}, p.{display_page}"
         context_parts.append(
-            f"[{title}, Page {display_page}, Priority: {weight}/100]\n{text}"
+            f"[CITE: {cite_key} | Priority: {weight}/100]\n{text}"
         )
-        sources.append(f"[{idx}] {title} (Page {display_page})")
+        sources.append(f"[{idx}] {cite_key}")
         seen_titles.add(title)
 
 
@@ -672,10 +697,11 @@ INSTRUCTIONS FOR YOUR RESPONSE:
 3. When sources conflict, prefer the higher-priority (earlier) source
 4. Build your answer by synthesizing information from these passages
 5. After each sentence or claim that uses a source, write on its own new line:
-   Source: [Exact Paper Title, p.N]
-   where N is the page number shown in the context for that passage. Example:
+   Source: [CITE key]
+   Copy the CITE key exactly as it appears in the passage header (everything after "CITE: " and before " |").
+   Example — if the header says [CITE: X-Ray Photon Correlation Spectroscopy, p.5 | Priority: ...], write:
    Source: [X-Ray Photon Correlation Spectroscopy, p.5]
-   Use the exact title — do not shorten or paraphrase it.
+   Do not shorten, paraphrase, or retype from memory — copy it character-for-character.
 6. Include any formulas or technical details from the passages
 7. If passages discuss related concepts (speckle, coherence, dynamics), explain how they relate to the question
 8. Use LaTeX for math: $inline$ or $$display$$
@@ -702,8 +728,10 @@ Provide a comprehensive, well-cited answer based on the passages."""
         "content": context_message
     })
     
-    # Call Argo LLM
-    answer = call_argo_llm(messages)
+    # Call Argo LLM — run in executor so the WebSocket keep-alive isn't blocked
+    answer = await asyncio.get_event_loop().run_in_executor(
+        None, functools.partial(call_argo_llm, messages)
+    )
 
     # Strip brackets from citation lines so Chainlit matches element names
     # "Source: [Title, p.N]" → "Source: Title, p.N"  (clickable)

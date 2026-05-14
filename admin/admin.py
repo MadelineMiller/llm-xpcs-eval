@@ -699,15 +699,19 @@ async def admin_page():
             <i class="fa-solid fa-sliders"></i> Document Weights
         </button>
         <button class="tab-btn" id="tab-btn-queue" onclick="switchTab('queue')">
-            <i class="fa-solid fa-inbox"></i> Review Queue [NOT FUNCTIONAL YET] 
+            <i class="fa-solid fa-inbox"></i> Review Queue
             <span class="queue-badge {badge_hidden}" id="pendingBadge">{pending_count}</span>
         </button>
     </div>
 
     <div id="tab-weights" class="tab-content">
     <p class="subtitle">
-        Adjust each document's relevance weight. (Default is 50/100) <br>
-        <strong>Higher weight = prioritized more when answering questions.</strong><br>
+        Retrieval is based on similarity to your question. <br>
+        Once similar documents are already gathered, the weight will affect how often a document gets cited in the LLM's answer. <br> <br>
+        Higher = cited more often <br>
+        Lower = cited less often <br>
+        0 = never cited. <br> <br>
+        (Default Weight: 50/100)
     </p>
 
     <button class="reset-btn" onclick="resetAllWeights()">

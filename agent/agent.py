@@ -2,6 +2,7 @@ import re
 import json
 import time
 import sys
+import tempfile
 import requests
 import importlib.util
 import os
@@ -55,7 +56,8 @@ ARGO_USER    = os.getenv("ARGO_USER")
 REVIEW_QUEUE_FILE = Path(__file__).parent / "review_queue.json"
 
 BEAMLINE_SOURCES = [
-    "https://photon-science.desy.de/facilities/petra_iii/beamlines/p10_coherence_applications/publications_from_p10/2026/index_eng.html",
+    "https://photon-science.desy.de/facilities/petra_iii/beamlines/p10_coherence_applications/publications_from_p10/2025/index_eng.html",
+    "https://www.esrf.fr/files/live/sites/www/files/UsersAndScience/Experiments/SoftMatter/ID10/ID10EH2/Science/ID10EH2_publications2023.pdf",
 ]
 
 # ============================================================================
@@ -387,7 +389,7 @@ def add_to_review_queue(doi: str, title: str, authors: list,
         with open(REVIEW_QUEUE_FILE) as f:
             queue = json.load(f)
 
-    existing_dois = {p["doi"] for p in queue if p.get("status") in ("pending", "approved")}
+    existing_dois = {p["doi"] for p in queue if p.get("status") in ("pending", "approved", "rejected")}
     if doi in existing_dois:
         return f"Paper '{title}' already in queue (pending/approved), skipped."
 
@@ -416,6 +418,233 @@ def add_to_review_queue(doi: str, title: str, authors: list,
     msg = f"Added '{title}' to review queue. Queue size: {len(queue)}"
     print(f"  {msg}")
     return msg
+
+
+def _pdf_text(pdf_bytes: bytes) -> str:
+    """Extract text from PDF bytes using PyMuPDF."""
+    import fitz
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        f.write(pdf_bytes)
+        tmp = f.name
+    try:
+        doc = fitz.open(tmp)
+        pages = [page.get_text() for page in doc]
+        doc.close()
+        text = "\n".join(pages)
+        print(f"  Extracted {len(text)} chars from {len(pages)} pages")
+        return text
+    finally:
+        os.unlink(tmp)
+
+
+def _selenium_fetch_pdf(url: str) -> bytes | None:
+    """Fetch a PDF from within a real browser context to bypass bot detection.
+
+    Navigates to the site root first (picks up session cookies), then uses
+    the browser's own fetch() API so the request carries cookies and a real
+    browser fingerprint. Works for sites that block plain Python requests.
+    """
+    import base64
+    from urllib.parse import urlparse
+    origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    driver = None
+    try:
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument(
+            "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+        )
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.set_script_timeout(60)
+
+        # Visit the site root to pick up session/consent cookies
+        driver.get(origin)
+        time.sleep(3)
+
+        # Use the browser's fetch() to get the PDF — includes all cookies automatically
+        b64 = driver.execute_async_script(f"""
+            var done = arguments[arguments.length - 1];
+            fetch({json.dumps(url)}, {{credentials: 'include'}})
+                .then(function(r) {{
+                    if (!r.ok) {{ done(null); return; }}
+                    return r.arrayBuffer();
+                }})
+                .then(function(buf) {{
+                    if (!buf) {{ done(null); return; }}
+                    var bytes = new Uint8Array(buf);
+                    var chunks = [];
+                    for (var i = 0; i < bytes.length; i += 8192) {{
+                        chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i+8192, bytes.length))));
+                    }}
+                    done(btoa(chunks.join('')));
+                }})
+                .catch(function() {{ done(null); }});
+        """)
+
+        if b64:
+            data = base64.b64decode(b64)
+            print(f"  Browser fetch succeeded: {len(data) // 1024} KB")
+            return data
+
+        print("  Browser fetch returned null (server still rejected the request)")
+        return None
+    except Exception as e:
+        print(f"  Selenium fetch error: {e}")
+        return None
+    finally:
+        if driver:
+            driver.quit()
+
+
+def _parse_bibliography(pdf_bytes: bytes, source_url: str) -> list:
+    """Extract papers from a bibliography PDF.
+
+    Uses two strategies:
+    1. PDF hyperlinks (get_links) — captures DOIs stored as clickable annotations,
+       which is common in modern publication lists.
+    2. Plain-text regex — catches DOIs written as visible text.
+    Both are merged, de-duplicated, and enriched with surrounding text context.
+    """
+    import fitz
+    doi_re = re.compile(r'(10\.\d{4,}/[^\s,;)\]\"\']+)')
+    seen = set()
+    doi_positions = {}   # doi -> (page_index, y position) for context lookup
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        f.write(pdf_bytes)
+        tmp = f.name
+
+    try:
+        doc = fitz.open(tmp)
+        page_texts = []
+
+        for page_idx, page in enumerate(doc):
+            text = page.get_text()
+            page_texts.append(text)
+
+            # Strategy 1: hyperlinks (DOIs stored as PDF annotations)
+            for link in page.get_links():
+                href = link.get("uri", "") or ""
+                m = doi_re.search(href)
+                if m:
+                    doi = m.group(1).rstrip('.')
+                    if doi not in seen:
+                        seen.add(doi)
+                        doi_positions[doi] = (page_idx, link.get("from", fitz.Rect()).y0)
+
+            # Strategy 2: visible text regex
+            for m in doi_re.finditer(text):
+                doi = m.group(1).rstrip('.')
+                if doi not in seen:
+                    seen.add(doi)
+                    doi_positions[doi] = (page_idx, -1)
+
+        doc.close()
+    finally:
+        os.unlink(tmp)
+
+    # Build paper entries: find context (title/authors) from surrounding text
+    papers = []
+    for doi, (page_idx, _) in doi_positions.items():
+        page_text = page_texts[page_idx]
+        lines = [l.strip() for l in page_text.split('\n') if l.strip()]
+
+        # Find which line contains this DOI and grab surrounding context
+        ctx_lines = []
+        for i, line in enumerate(lines):
+            if doi in line or doi.replace('/', '%2F') in line:
+                ctx_lines = lines[max(0, i - 6):i + 1]
+                break
+        if not ctx_lines:
+            ctx_lines = lines[:6]  # fallback to page start
+
+        context = ' | '.join(ctx_lines)
+        title_guess = max(ctx_lines[:-1], key=len) if len(ctx_lines) > 1 else ""
+
+        papers.append({
+            "doi":        doi,
+            "title":      title_guess,
+            "context":    context[:400],
+            "source_url": source_url,
+        })
+
+    print(f"  Extracted {len(papers)} papers (hyperlinks + text) from bibliography")
+    return papers
+
+
+def scrape_publication_pdf(url: str) -> str:
+    """Download a publication-list PDF and return a JSON list of papers with DOIs.
+
+    Works like scrape_beamline_page but for PDF sources. Returns a JSON array
+    where each entry has doi, title (guessed from context), context, source_url.
+    """
+    import fitz  # noqa: ensure import available
+    print(f"\n[TOOL EXECUTING] scrape_publication_pdf({url})")
+
+    # Try plain requests first (fast, works for most open URLs).
+    from urllib.parse import urlparse
+    origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    session = requests.Session()
+    session.headers.update({**_BROWSER_HEADERS, "Referer": origin + "/", "Accept": "application/pdf,*/*"})
+    try:
+        session.get(origin, timeout=10)
+    except Exception:
+        pass
+    resp = session.get(url, timeout=30)
+
+    if resp.ok:
+        pdf_bytes = resp.content
+    else:
+        print(f"  HTTP {resp.status_code} — falling back to browser fetch...")
+        pdf_bytes = _selenium_fetch_pdf(url)
+        if not pdf_bytes:
+            return json.dumps({"error": f"Could not download PDF (HTTP {resp.status_code}, browser fetch also failed)"})
+
+    papers = _parse_bibliography(pdf_bytes, source_url=url)
+    if not papers:
+        # Fallback: no DOIs found — return truncated raw text so Claude can still try
+        print("  No DOIs extracted; returning raw text as fallback")
+        return _pdf_text(pdf_bytes)[:30000]
+    return json.dumps(papers)
+
+
+# --- forge_graph wrappers (relevance judgment only — no web discovery) ---
+
+def lookup_papers_by_doi(dois: str) -> str:
+    """Fetch abstract + concepts from OpenAlex for one or more DOIs (comma-separated)."""
+    print(f"\n[TOOL EXECUTING] lookup_papers_by_doi({dois!r})")
+    if not _FORGE_GRAPH_AVAILABLE:
+        return json.dumps({"error": "forge_graph not available"})
+    return _fg_search_papers_by_doi(dois)
+
+
+def read_paper_content(doi: str) -> str:
+    """Download and parse a paper by DOI into structured markdown with section list."""
+    print(f"\n[TOOL EXECUTING] read_paper_content({doi!r})")
+    if not _FORGE_GRAPH_AVAILABLE:
+        return json.dumps({"error": "forge_graph not available"})
+    return _fg_read_paper_by_doi(doi)
+
+
+def read_paper_section(doi: str, section_name: str) -> str:
+    """Extract one section from a paper already fetched by read_paper_content."""
+    print(f"\n[TOOL EXECUTING] read_paper_section({doi!r}, {section_name!r})")
+    if not _FORGE_GRAPH_AVAILABLE:
+        return json.dumps({"error": "forge_graph not available"})
+    return _fg_read_paper_section(doi, section_name)
+
+
+def extract_experimental_details(doi: str) -> str:
+    """Extract technique/material/instrument keywords from a paper's experimental section."""
+    print(f"\n[TOOL EXECUTING] extract_experimental_details({doi!r})")
+    if not _FORGE_GRAPH_AVAILABLE:
+        return json.dumps({"error": "forge_graph not available"})
+    return _fg_extract_experimental_details(doi)
 
 
 # ============================================================================
@@ -484,6 +713,88 @@ TOOLS = [
         }
     },
     {
+        "name": "scrape_publication_pdf",
+        "description": (
+            "Download a publication-list PDF (e.g. from ESRF) and return a JSON list of papers. "
+            "Use this for any source URL ending in .pdf. "
+            "Each paper has: doi, title (guessed from context), context (surrounding text), source_url. "
+            "Process the returned list the same way as scrape_beamline_page output."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL of the publication list PDF"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "lookup_papers_by_doi",
+        "description": (
+            "Fetch abstract, concepts, and citation count from OpenAlex for one or more DOIs. "
+            "Pass a comma-separated list of DOIs. "
+            "Use this instead of fetch_abstract when you need richer metadata, "
+            "or when fetch_abstract returns nothing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dois": {
+                    "type": "string",
+                    "description": "Comma-separated DOIs, e.g. '10.1000/xyz,10.1000/abc'"
+                }
+            },
+            "required": ["dois"]
+        }
+    },
+    {
+        "name": "read_paper_content",
+        "description": (
+            "Download a paper by DOI and parse it into structured markdown. "
+            "Returns a section list and a content preview (~8000 chars). "
+            "Use only for papers where the abstract is insufficient to judge XPCS relevance. "
+            "This downloads the PDF via open-access routes (Unpaywall, Semantic Scholar)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "doi": {"type": "string", "description": "DOI of the paper"}
+            },
+            "required": ["doi"]
+        }
+    },
+    {
+        "name": "read_paper_section",
+        "description": (
+            "Extract a specific section (e.g. 'experimental', 'methods') from a paper "
+            "previously fetched by read_paper_content. "
+            "Use when the content preview from read_paper_content is not enough."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "doi":          {"type": "string", "description": "DOI of the paper"},
+                "section_name": {"type": "string", "description": "Section name substring, e.g. 'experimental' or 'methods'"}
+            },
+            "required": ["doi", "section_name"]
+        }
+    },
+    {
+        "name": "extract_experimental_details",
+        "description": (
+            "Extract detected techniques, materials, and instrument keywords from a paper's "
+            "experimental section. Requires read_paper_content to have been called first. "
+            "Useful for borderline papers to check for XPCS-relevant technique keywords."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "doi": {"type": "string", "description": "DOI of the paper"}
+            },
+            "required": ["doi"]
+        }
+    },
+    {
         "name": "add_to_review_queue",
         "description": (
             "Add a paper to the human review queue after determining it is "
@@ -542,6 +853,21 @@ def dispatch_tool(tool_name: str, tool_input: dict) -> str:
         result = fetch_pdf(tool_input["doi"], tool_input.get("title", ""))
         return json.dumps(result)
 
+    elif tool_name == "scrape_publication_pdf":
+        return scrape_publication_pdf(tool_input["url"])
+
+    elif tool_name == "lookup_papers_by_doi":
+        return lookup_papers_by_doi(tool_input["dois"])
+
+    elif tool_name == "read_paper_content":
+        return read_paper_content(tool_input["doi"])
+
+    elif tool_name == "read_paper_section":
+        return read_paper_section(tool_input["doi"], tool_input["section_name"])
+
+    elif tool_name == "extract_experimental_details":
+        return extract_experimental_details(tool_input["doi"])
+
     elif tool_name == "add_to_review_queue":
         return add_to_review_queue(
             doi        = tool_input["doi"],
@@ -596,29 +922,59 @@ def run_agent():
     system_prompt = """You are an autonomous XPCS literature harvesting agent.
 
 Your goal is to find papers relevant to X-ray Photon Correlation Spectroscopy (XPCS)
-from beamline publication pages and add them to a review queue.
+from trusted beamline publication sources and add them to a human review queue.
 
-XPCS relevant topics include: speckle, coherence, photon correlation, dynamics,
-scattering, synchrotron, soft matter dynamics, nanoparticle dynamics, phase transitions,
-diffusion, relaxation, coherent X-ray imaging, BCDI, SAXS dynamics, correlation functions.
+XPCS-relevant topics include: X-ray photon correlation spectroscopy, speckle,
+coherent X-rays, intensity fluctuations, correlation functions, dynamic light scattering
+via X-ray, soft matter dynamics, nanoparticle dynamics, colloidal dynamics, phase
+transitions, diffusion, relaxation times, SAXS dynamics, coherent diffraction,
+heterogeneous dynamics, aging, jamming, gelation.
 
-For each source URL you are given:
-1. Call scrape_beamline_page to get the list of papers
-2. For each paper, use the title to make an initial judgment
-   - If the title is clearly XPCS relevant, fetch the abstract to confirm
-   - If the title is clearly unrelated (e.g. protein crystallography, optics engineering),
-     skip it without fetching the abstract
-   - If you are unsure, fetch the abstract to decide
-3. After reading the abstract, decide if the paper is XPCS relevant
-4. If relevant:
-   a. Call fetch_pdf with the DOI and the paper title. The tool tries Unpaywall,
-      Semantic Scholar, and arXiv in sequence. Always pass title so arXiv search works.
-      This returns pdf_path and pdf_url (either a path/URL or null if unavailable).
-   b. Call add_to_review_queue, passing pdf_path and pdf_url from the fetch_pdf result.
-5. If not relevant, move on to the next paper
+## Source types
 
-Be selective but thorough. When you are done with all sources,
-give a brief summary of what you found."""
+You will receive two kinds of source URLs:
+
+**HTML pages** (URL does not end in .pdf):
+  Call scrape_beamline_page(url). This returns a structured list of papers with
+  doi, title, authors, journal, source_url.
+
+**PDF publication lists** (URL ends in .pdf):
+  Call scrape_publication_pdf(url). This returns a JSON list of papers identical in
+  structure to scrape_beamline_page output — each has doi, title, context, source_url.
+  Process it the same way: evaluate each paper for XPCS relevance.
+
+## Per-paper workflow
+
+For each paper discovered from any source:
+
+1. **Title check** — make an initial judgment from the title alone.
+   - Clearly XPCS-related (speckle, photon correlation, coherent dynamics): proceed to step 2.
+   - Clearly unrelated (protein crystallography, optics fabrication, detector engineering
+     with no dynamics component): skip — do not fetch abstract.
+   - Uncertain: proceed to step 2.
+
+2. **Abstract check** — call lookup_papers_by_doi(doi). This returns the abstract,
+   concepts, and citation count from OpenAlex. Decide if the paper is XPCS-relevant.
+   Fall back to fetch_abstract(doi) if lookup_papers_by_doi returns no abstract.
+
+3. **Full-text check (borderline papers only)** — if the abstract is ambiguous,
+   call read_paper_content(doi) to download and parse the paper. Check the section
+   list returned, then call read_paper_section(doi, "experimental") or
+   extract_experimental_details(doi) to look for XPCS technique keywords in the methods.
+   Use this sparingly — only when abstract-level judgment is genuinely uncertain.
+
+4. **If relevant**:
+   a. Call fetch_pdf(doi, title) to attempt open-access PDF download.
+   b. Call add_to_review_queue with all metadata and the pdf_path/pdf_url from fetch_pdf.
+
+5. **If not relevant**: move on.
+
+## Notes
+- Be selective. Not every paper at an XPCS beamline uses XPCS — some use SAXS, WAXS,
+  CDI, or other techniques. Judge by whether the paper actually measures dynamics via
+  photon correlation, not just whether it used the beamline.
+- When done with all sources, give a concise summary: how many papers found per source,
+  how many queued."""
 
     messages = [
         {
