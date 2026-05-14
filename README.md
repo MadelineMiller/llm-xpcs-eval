@@ -44,6 +44,41 @@ The agent is built from three components working together:
 - **Tools** — Python functions that interact with the real world
 - **Agent loop** — sends tool results back to Claude so it can decide what to do next
 
+### Agent Flow
+
+```mermaid
+flowchart TD
+    A([Start: beamline source URLs]) --> B{URL type?}
+
+    B -->|HTML page| C[scrape_beamline_page]
+    B -->|PDF list| D[scrape_publication_pdf]
+
+    C & D --> E[/Paper: doi, title, authors, journal/]
+
+    E --> F{Title check}
+    F -->|Clearly irrelevant| SKIP([Skip])
+    F -->|Relevant or uncertain| G[lookup_papers_by_doi\nOpenAlex abstract + concepts]
+
+    G -->|No abstract found| G2[fetch_abstract\nCrossref / Semantic Scholar]
+    G & G2 --> H{Abstract check}
+
+    H -->|Not relevant| SKIP
+    H -->|Relevant| I[fetch_pdf\nUnpaywall → S2 → arXiv → Selenium]
+    H -->|Borderline| J[read_paper_content\ndownload + parse full text]
+
+    J --> K[read_paper_section\nor extract_experimental_details]
+    K --> H2{Full-text check}
+    H2 -->|Not relevant| SKIP
+    H2 -->|Relevant| I
+
+    I --> L[add_to_review_queue]
+    L --> M([review_queue.json\npending human review])
+
+    style SKIP fill:#4a1212,color:#ef9a9a,stroke:#7f0000
+    style M fill:#1b5e20,color:#a5d6a7,stroke:#2e7d32
+    style A fill:#1a3a5c,color:#90caf9,stroke:#1565c0
+```
+
 ### Per-Paper Workflow
 
 For each paper discovered:
