@@ -104,22 +104,31 @@ Configure target beamline URLs in the `BEAMLINE_SOURCES` list at the top of `age
 ### Data Flow
 
 #### Ingestion (One-time Setup)
-1. PDFs loaded via `rag/ingest_documents.py`
-2. Text extracted and split into chunks (1000 chars, 200 overlap)
-3. SciBERT embeddings generated (768-dimensional vectors)
-4. Vectors stored in Qdrant with metadata (title, authors, journal, DOI, page)
+
+```mermaid
+flowchart LR
+    A([PDFs]) --> B[Split into chunks\n1000 chars / 200 overlap]
+    B --> C[SciBERT embeddings\n768-dim vectors]
+    C --> D([Qdrant\nvector store])
+
+    style A fill:#1a3a5c,color:#90caf9,stroke:#1565c0
+    style D fill:#1b5e20,color:#a5d6a7,stroke:#2e7d32
+```
 
 #### Query Processing (Runtime)
-1. User submits question via Chainlit UI
-2. Query expanded with domain-specific terms, then embedded using SciBERT
-3. Three-phase retrieval:
-   - **Semantic search** — top 40 results by cosine similarity
-   - **Keyword scroll** — chunks containing all extracted key terms
-   - **Adjacent chunk retrieval** — neighboring pages from already-retrieved documents
-4. Results sorted by document weight (admin-configurable), then similarity
-5. LLM reranker (GPT-4.1 Nano) filters to contextually relevant chunks
-6. Claude Opus 4.1 generates a cited response from filtered passages
-7. Answer displayed in Chainlit with clickable source citations (side panel shows chunk text and metadata)
+
+```mermaid
+flowchart LR
+    A([User question]) --> B[Embed with SciBERT]
+    B --> C[3-phase retrieval\nsemantic · keyword · adjacent]
+    C --> D[Sort by\ndocument weight]
+    D --> E[LLM reranker\nGPT-4.1 Nano]
+    E --> F[Claude Opus 4.1\ngenerates answer]
+    F --> G([Cited response\nin Chainlit])
+
+    style A fill:#1a3a5c,color:#90caf9,stroke:#1565c0
+    style G fill:#1b5e20,color:#a5d6a7,stroke:#2e7d32
+```
 
 ### Authentication
 
