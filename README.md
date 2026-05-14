@@ -1,35 +1,37 @@
-# XPCS Hypothesis Evaluator LLM (In Progress)
+# XPCS Hypothesis Evaluator LLM
 
 ## About the Project
 
-### Target Audience: 
-* Beamline visiting users
-  
-### Context & Sources  
-* Textbooks on XPCS  
-* Data handbook   
-* Sources present in the Annual Review of Materials Research (2018) citations
-  
+### Target Audience
+* Beamline visiting users at Argonne National Laboratory's Advanced Photon Source (8-ID)
+
+### Context & Sources
+* XPCS textbooks and reference materials
+* X-ray Data Booklet
+* Papers from Annual Review of Materials Research (2018) and other XPCS literature
+
 ### Key Capabilities
 * Assist users in formulating and refining scientific hypotheses for XPCS experiments
-* Check feasibility of testing the user's hypothesis against 8-ID’s resources and capabilities
-  
+* Check feasibility of testing the user's hypothesis against 8-ID's resources and capabilities
+* Provide cited answers grounded in the XPCS literature database
+
 ### Primary Goals
 * Enable users to validate whether their experiment concept is technically feasible at 8-ID
-* Reduce back-and-forth with beamline staff by providing upfront guidance to users
+* Reduce back-and-forth with beamline staff by providing upfront guidance
 
-### Technical Overview
-This project has a few distinct parts:
+---
+
+This project has three parts:
 
 **Part 1 — Agentic XPCS Publication Harvester:** An agentic AI system that autonomously scouts global beamline publication pages, evaluates papers for XPCS relevance, and submits candidates to a human review queue for ingestion into the chatbot's knowledge base.
 
 **Part 2 — RAG Chatbot:** A retrieval-augmented generation chatbot that helps beamline visiting users formulate and evaluate XPCS experiment hypotheses against 8-ID's capabilities.
 
-**Part 3 - Document Ranking System:** TBD
+**Part 3 — Document Management System:** A web-based admin panel for managing the knowledge base — adjusting document retrieval weights, uploading new PDFs, and approving or rejecting papers from the agent's review queue.
 
+---
 
 <h2><img src="https://img.shields.io/badge/Part_1-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;Agentic XPCS Publication Harvester</h2>
-
 
 An agentic AI system that keeps the chatbot's knowledge base current by autonomously finding and screening new XPCS papers from beamline publication pages around the world.
 
@@ -41,77 +43,155 @@ The agent is built from three components working together:
 - **Tools** — Python functions that interact with the real world
 - **Agent loop** — sends tool results back to Claude so it can decide what to do next
 
+### Per-Paper Workflow
+
+For each paper discovered:
+
+1. **Title check** — initial relevance judgment from the title alone
+2. **Abstract check** — calls `lookup_papers_by_doi` (OpenAlex) or `fetch_abstract` (Crossref / Semantic Scholar)
+3. **Full-text check** *(borderline papers only)* — downloads and parses the paper via `read_paper_content`, then checks the experimental section with `read_paper_section` or `extract_experimental_details`
+4. **If relevant** — calls `fetch_pdf` to attempt open-access download, then `add_to_review_queue`
+5. **If not relevant** — moves on
+
 ### Tools Available to Claude
 
 | Tool | What It Does |
 |------|-------------|
-| `scrape_beamline_page` | Loads a beamline publications page and extracts paper metadata |
+| `scrape_beamline_page` | Scrapes an HTML beamline publications page and extracts paper metadata |
+| `scrape_publication_pdf` | Downloads a publication-list PDF and extracts DOIs and paper metadata |
 | `fetch_abstract` | Retrieves a paper's abstract via Crossref or Semantic Scholar |
-| `add_to_review_queue` | Writes a relevant paper to the human review queue |
+| `lookup_papers_by_doi` | Fetches abstract, concepts, and citation count from OpenAlex |
+| `fetch_pdf` | Finds and downloads an open-access PDF (Unpaywall → Semantic Scholar → arXiv → Selenium fallback) |
+| `read_paper_content` | Downloads and parses a paper by DOI into structured markdown |
+| `read_paper_section` | Extracts a specific section from a previously fetched paper |
+| `extract_experimental_details` | Pulls technique/material/instrument keywords from a paper's experimental section |
+| `add_to_review_queue` | Writes a relevant paper to the human review queue (`agent/review_queue.json`) |
 
+### Running the Harvester
+
+```bash
+python agent/agent.py
+```
+
+Configure target beamline URLs in the `BEAMLINE_SOURCES` list at the top of `agent/agent.py`.
+
+---
 
 <h2><img src="https://img.shields.io/badge/Part_2-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;RAG Chatbot</h2>
 
-## Architecture of Ingestion & Query Processing
+## Architecture
+
 ![Architecture of Ingestion & Query Processing](assets/layout-diagrams.png)
 
 ### Data Flow
 
 #### Ingestion (One-time Setup)
-1. Google Scholar -> 115 XPCS papers downloaded
-2. PDFs loaded -> 113 successfully processed
-3. Text extraction -> Split into 5,743 chunks (1000 chars, 200 overlap)
-4. SciBERT embeddings -> 768-dimensional vectors generated
-5. Qdrant vector database -> Vectors stored with metadata (source, page)
+1. PDFs loaded via `rag/ingest_documents.py`
+2. Text extracted and split into chunks (1000 chars, 200 overlap)
+3. SciBERT embeddings generated (768-dimensional vectors)
+4. Vectors stored in Qdrant with metadata (title, authors, journal, DOI, page)
 
 #### Query Processing (Runtime)
 1. User submits question via Chainlit UI
-2. Question embedded using SciBERT
-3. Qdrant performs semantic search (cosine similarity)
-4. Top 7 relevant passages retrieved (threshold: TBD)
-5. Context built from passages + conversation history (last 5 Q&A pairs)
-6. Prompt sent to Argo API (GPT-4o)
-7. LLM generates response with source citations
-8. Answer displayed in Chainlit with paper names and page numbers
+2. Query expanded with domain-specific terms, then embedded using SciBERT
+3. Three-phase retrieval:
+   - **Semantic search** — top 40 results by cosine similarity
+   - **Keyword scroll** — chunks containing all extracted key terms
+   - **Adjacent chunk retrieval** — neighboring pages from already-retrieved documents
+4. Results sorted by document weight (admin-configurable), then similarity
+5. LLM reranker (GPT-4.1 Nano) filters to contextually relevant chunks
+6. Claude Opus 4.1 generates a cited response from filtered passages
+7. Answer displayed in Chainlit with clickable source citations (side panel shows chunk text and metadata)
 
-<h2><img src="https://img.shields.io/badge/Part_3-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;Document Ranking System</h2>
+### Authentication
 
-TODO
+Login uses ANL LDAP credentials. Configure via `.env`:
 
-### Repository Structure
-`llm-xpcs-eval/`  
-|-- `context/`                    # Document acquisition  
-| ---------> `download_context_docs.py`   # Selenium scraper for Google Scholar PDFs  
-|-- `rag/`                        # RAG pipeline components  
-| ---------> `ingest_documents.py`        # PDF -> chunks -> embeddings -> Qdrant  
-| ---------> `test_retrieval.py`          # Test vector search  
-|-- `app.py`                    # Main Chainlit chat interface  
-|--  `config.py`                   # Hyperparameters (retrieval, LLM)  
+```
+LDAP_SERVER=...
+LDAP_BASE_DN=...
+LDAP_SERVICE_USER_DN=...
+LDAP_ADMIN_PASSWORD=...
+```
 
-### Tech Stack
+### Running the Chatbot
 
-**Frontend:** Built with [Chainlit](https://github.com/Chainlit/chainlit), an open-source framework for building conversational AI interfaces.
+```bash
+chainlit run app.py
+```
 
+---
 
-**Backend:** Python 3.10
+<h2><img src="https://img.shields.io/badge/Part_3-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;Document Management System</h2>
 
-**Databases:** 
-- Qdrant (vector database for embeddings)
+A FastAPI admin panel (port 8001) that launches automatically alongside the chatbot. Accessible via a link in the chat welcome message — authenticated via a per-session token.
 
-**RAG Pipeline:**
-- LangChain (document loading, text splitting, embedding interface)
-- SciBERT (`allenai/scibert_scivocab_uncased`) - 768-dim embeddings
-- Qdrant vector search (cosine similarity)
+### Document Weights Tab
 
-**LLM:** Argo API (GPT-4o)
+Controls how aggressively each document is cited in answers:
 
-**Infrastructure:**
-* Qdrant (the vector database)
-- Conda environment: `xpcs-llm` (Python dependencies)
+- **Weight 0–29:** cited only if directly and specifically relevant
+- **Weight 30–69:** cited only if clearly relevant
+- **Weight 70–100:** cited if possibly relevant
+- **Weight 0:** excluded entirely from retrieval
 
-## Overall Architecture of the Desired System
+Supports uploading new PDFs directly from the browser. CrossRef is queried automatically for metadata; if not found, a manual entry form is shown. Uploaded documents are chunked, embedded, and added to Qdrant immediately.
+
+### Review Queue Tab
+
+Shows papers submitted by the harvesting agent. For each paper:
+- View title, authors, journal, DOI, agent confidence, and abstract
+- **Approve** — ingests the paper (full PDF text if downloaded, otherwise abstract) into Qdrant
+- **Deny** — marks as rejected
+
+---
+
+## Repository Structure
+
+```
+llm-xpcs-eval/
+├── app.py                   # Chainlit chat interface (main entry point)
+├── config.py                # LLM, retrieval, and reranker hyperparameters
+├── logger.py                # Query and access logging
+├── auth_tokens.py           # Admin session token management
+├── doc_weights.json         # Per-document weight store
+├── agent/
+│   ├── agent.py             # Harvesting agent + tool implementations
+│   └── review_queue.json    # Papers pending human review
+├── admin/
+│   ├── admin.py             # FastAPI admin panel (weights + review queue)
+│   └── weights_manager.py   # Weight load/save/apply helpers
+├── rag/
+│   ├── ingest_documents.py  # PDF → chunks → embeddings → Qdrant
+│   ├── ingest_reference_docs.py
+│   ├── reingest_everything.py
+│   ├── citations/           # Metadata audit and repair scripts
+│   └── add_handbook/        # Scripts for adding reference documents
+├── context/
+│   └── download_context_docs.py  # Selenium scraper for Google Scholar PDFs
+└── public/                  # Chainlit static assets (CSS, JS, logos)
+```
+
+## Tech Stack
+
+**Frontend:** [Chainlit](https://github.com/Chainlit/chainlit) — conversational AI interface  
+**Admin UI:** FastAPI + server-rendered HTML (port 8001)  
+**Auth:** ANL LDAP  
+**Backend:** Python 3.10+
+
+**LLM:** Claude Opus 4.1 (`claudeopus41`) via Argo API  
+**Reranker:** GPT-4.1 Nano (`gpt41nano`) via Argo API  
+
+**Embeddings:** SciBERT (`allenai/scibert_scivocab_uncased`) — 768-dimensional vectors  
+**Vector Database:** Qdrant (local)  
+**RAG Pipeline:** LangChain (document loading, text splitting, embedding interface)
+
+**Agent Tools:** Crossref, Semantic Scholar, OpenAlex, Unpaywall, arXiv, Selenium
+
+## Overall Architecture
+
 ![Hypothesis-Driven Physical Science via LLM (XPCS Example)](assets/llm-xpcs-example-slide.png)
-  
+
 <br>
 
 <div align="center">
