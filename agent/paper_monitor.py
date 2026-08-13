@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import logging.handlers
 import os
 import re
 import smtplib
@@ -42,12 +44,13 @@ import logger as applog  # noqa: E402
 # ── Config (env-driven) ────────────────────────────────────────────────────────
 
 KEYWORDS         = [k.strip() for k in os.getenv("PAPER_MONITOR_KEYWORDS", "XPCS").split(",") if k.strip()]
-TO_ADDR          = os.getenv("PAPER_MONITOR_TO", "momiller@anl.gov")
+TO_ADDRS         = [a.strip() for a in os.getenv("PAPER_MONITOR_TO", "momiller@anl.gov").split(",") if a.strip()]
 RUN_AT_HHMM      = os.getenv("PAPER_MONITOR_RUN_AT", "06:00")  # 24-hour HH:MM in RUN_TZ
 RUN_TZ_NAME      = os.getenv("PAPER_MONITOR_TZ", "America/Chicago")
 MIN_SCORE        = float(os.getenv("PAPER_MONITOR_MIN_SCORE", "6"))
 GMAIL_ADDRESS    = os.getenv("GMAIL_ADDRESS", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 
 def _parse_hhmm(s: str) -> tuple[int, int]:
@@ -68,6 +71,49 @@ def _next_run_at(now_utc: datetime) -> datetime:
 STATE_FILE = Path(__file__).parent / ".paper_monitor_state.json"
 CROSSREF_UA = "XPCS-Harvester-Bot/1.0 (mailto:momiller@anl.gov)"
 MAX_SEEN = 5000
+
+# ── Per-tick JSONL log (persistent audit trail) ────────────────────────────────
+_run_log = logging.getLogger("paper_monitor.runs")
+if not _run_log.handlers:
+    os.makedirs("logs", exist_ok=True)
+    _h = logging.handlers.RotatingFileHandler(
+        "logs/paper_monitor.log",
+        maxBytes=10 * 1024 * 1024,   # 10 MB
+        backupCount=10,               # keep ~100 MB history
+        encoding="utf-8",
+    )
+    _h.setFormatter(logging.Formatter("%(message)s"))
+    _run_log.addHandler(_h)
+    _run_log.setLevel(logging.INFO)
+    _run_log.propagate = False
+
+
+def _log_run(meta: dict, included: list[dict], candidates_total: int, delivered: dict) -> None:
+    """Append one JSONL record per real (non-dry-run) tick."""
+    record = {
+        "timestamp":         datetime.now(timezone.utc).isoformat(),
+        "candidates_total":  candidates_total,
+        "included_count":    len(included),
+        "delivered":         delivered,       # {"email": bool, "slack": bool}
+        "meta":              meta,
+        "papers": [
+            {
+                "source":  p.get("source"),
+                "id":      p.get("id"),
+                "doi":     p.get("doi", ""),
+                "title":   p.get("title"),
+                "authors": p.get("authors", []),
+                "venue":   p.get("venue", ""),
+                "year":    p.get("year", ""),
+                "url":     p.get("url"),
+                "score":   p.get("score"),
+                "reason":  p.get("reason", ""),
+                "summary": p.get("summary", ""),
+            }
+            for p in included
+        ],
+    }
+    _run_log.info(json.dumps(record, ensure_ascii=False))
 
 
 # ── State ──────────────────────────────────────────────────────────────────────
@@ -330,22 +376,24 @@ def _strip_tags(s: str) -> str:
 
 _SCREEN_PROMPT_TMPL = (
     "You are triaging scientific literature for the beamline scientists at APS 8-ID (XPCS).\n"
-    "Given the title and abstract below, rate 0-10 how relevant this paper is to X-ray "
-    "Photon Correlation Spectroscopy.\n"
-    "  10 = paper is explicitly about XPCS methodology or uses XPCS as a primary technique\n"
-    "  6-8 = adjacent (dynamic light scattering, coherent diffraction, speckle statistics, "
+    "Given the title and abstract below, do two things:\n"
+    "  1. Rate 0-10 how relevant this paper is to X-ray Photon Correlation Spectroscopy.\n"
+    "     10 = paper is explicitly about XPCS methodology or uses XPCS as a primary technique\n"
+    "     6-8 = adjacent (dynamic light scattering, coherent diffraction, speckle statistics, "
     "colloidal nanoparticle dynamics)\n"
-    "  below 6 = tangential mention or off-topic\n\n"
+    "     below 6 = tangential mention or off-topic\n"
+    "  2. Write a one-sentence plain-English summary of what the paper is about.\n\n"
     "TITLE: {title}\n\n"
     "ABSTRACT: {abstract}\n\n"
-    "Respond with ONLY a raw JSON object, no markdown or code fences. "
-    'Example: {{"score": 8, "reason": "Uses XPCS to study nanoparticle diffusion."}}'
+    "Respond with ONLY a raw JSON object, no markdown or code fences. Example:\n"
+    '{{"score": 8, "reason": "Uses XPCS to study nanoparticle diffusion.", '
+    '"summary": "The authors combine XPCS and rheology to probe the yielding of a colloidal gel."}}'
 )
 
 
-def screen(paper: dict) -> tuple[float, str]:
-    """Ask the LLM to rate a paper's XPCS relevance. Returns (score, reason).
-    Fail-open with score=0 on any error so bad LLM output silently drops the paper."""
+def screen(paper: dict) -> tuple[float, str, str]:
+    """Ask the LLM to rate a paper's XPCS relevance and summarize it in one sentence.
+    Returns (score, reason, summary). Fail-open with score=0 on any error."""
     prompt = _SCREEN_PROMPT_TMPL.format(
         title=paper.get("title", ""),
         abstract=(paper.get("abstract") or "")[:2000],
@@ -353,22 +401,23 @@ def screen(paper: dict) -> tuple[float, str]:
     raw = call_argo_llm([{"role": "user", "content": prompt}])
     if not isinstance(raw, str):
         applog.log_error("paper_monitor.screen", f"non-string LLM response: {type(raw)}")
-        return (0.0, "")
+        return (0.0, "", "")
 
     text = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
     text = re.sub(r"\s*```$", "", text.strip())
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
         applog.log_error("paper_monitor.screen_parse", f"no JSON in: {text[:200]}")
-        return (0.0, "")
+        return (0.0, "", "")
     try:
         obj = json.loads(match.group(0))
         score = float(obj.get("score", 0))
         reason = str(obj.get("reason", "")).strip()
-        return (score, reason)
+        summary = str(obj.get("summary", "")).strip()
+        return (score, reason, summary)
     except (json.JSONDecodeError, TypeError, ValueError) as e:
         applog.log_error("paper_monitor.screen_json", f"{e}: {text[:200]}")
-        return (0.0, "")
+        return (0.0, "", "")
 
 
 # ── Email ──────────────────────────────────────────────────────────────────────
@@ -409,6 +458,7 @@ def _render_html(papers: list[dict], date_str: str, meta: dict) -> str:
             + row.format(label="Title",     value=f"<b>{escape(p['title'])}</b>")
             + row.format(label="Authors",   value=escape(authors) or "<i>(unknown)</i>")
             + row.format(label="Venue",     value=venue_year)
+            + row.format(label="Summary",   value=escape(p.get('summary') or '(no summary generated)'))
             + row.format(label="Relevance", value=f"<b>{p['score']:.1f}/10</b> &mdash; {escape(p['reason'] or '(no reason given)')}")
             + row.format(label="Link",      value=link_html)
             + f"<div style='margin-top:10px'><b>Abstract:</b></div>"
@@ -430,7 +480,7 @@ def send_digest(papers: list[dict], date_str: str, meta: dict) -> None:
     msg = EmailMessage()
     msg["Subject"] = f"XPCS Paper Digest — {date_str} — {len(papers)} papers"
     msg["From"] = GMAIL_ADDRESS
-    msg["To"] = TO_ADDR
+    msg["To"] = ", ".join(TO_ADDRS)
     def _plain_entry(i, p):
         authors = ", ".join(p["authors"][:6]) + (" et al." if len(p["authors"]) > 6 else "")
         venue = (p.get("venue") or "?") + (f", {p['year']}" if p.get("year") else "")
@@ -440,6 +490,7 @@ def send_digest(papers: list[dict], date_str: str, meta: dict) -> None:
             f"Title:     {p['title']}\n"
             f"Authors:   {authors or '(unknown)'}\n"
             f"Venue:     {venue}\n"
+            f"Summary:   {p.get('summary') or '(no summary generated)'}\n"
             f"Relevance: {p['score']:.1f}/10 — {p.get('reason') or '(no reason given)'}\n"
             f"Link:      {p['url']}\n"
             f"\nAbstract:\n{abstract}\n"
@@ -455,6 +506,70 @@ def send_digest(papers: list[dict], date_str: str, meta: dict) -> None:
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
         s.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
         s.send_message(msg)
+
+
+# ── Slack ──────────────────────────────────────────────────────────────────────
+
+_SLACK_MAX_PAPERS = 20  # Slack messages cap at ~50 blocks; leave headroom
+
+
+def _slack_paper_block(i: int, p: dict) -> dict:
+    authors = ", ".join(p["authors"][:6]) + (" et al." if len(p["authors"]) > 6 else "")
+    venue = (p.get("venue") or "?") + (f", {p['year']}" if p.get("year") else "")
+    title_link = f"<{p['url']}|{_slack_escape(p['title'])}>"
+    lines = [
+        f"*#{i} — {p['score']:.1f}/10*  {title_link}",
+        f"_{_slack_escape(authors) or 'unknown'}_ • _{_slack_escape(venue)}_",
+        f"*Summary:* {_slack_escape(p.get('summary') or '(no summary generated)')}",
+        f"*Why relevant:* {_slack_escape(p.get('reason') or '(no reason given)')}",
+    ]
+    return {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(lines)}}
+
+
+def _slack_escape(s: str) -> str:
+    """Slack mrkdwn: escape only the three chars that break parsing."""
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def send_slack(papers: list[dict], date_str: str, meta: dict) -> None:
+    if not SLACK_WEBHOOK_URL:
+        return
+
+    shown = papers[:_SLACK_MAX_PAPERS]
+    truncated = len(papers) - len(shown)
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text",
+                                     "text": f"{len(papers)} new XPCS-relevant papers — {date_str}"}},
+    ]
+    for i, p in enumerate(shown, 1):
+        blocks.append(_slack_paper_block(i, p))
+        blocks.append({"type": "divider"})
+
+    if truncated > 0:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+                                                    "text": f"_…and {truncated} more (see email for full list)_"}})
+        blocks.append({"type": "divider"})
+
+    footer_text = (
+        "*About this digest*\n"
+        + "\n".join(f"*{_slack_escape(k)}:* {_slack_escape(str(v))}" for k, v in meta.items())
+    )
+    blocks.append({
+        "type": "section",
+        "text": {"type": "mrkdwn", "text": footer_text},
+    })
+
+    payload = {
+        "text": f"{len(papers)} new XPCS-relevant papers — {date_str}",
+        "blocks": blocks,
+    }
+    try:
+        resp = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=15)
+        if not resp.ok:
+            applog.log_api_error("paper_monitor.slack", resp.status_code, resp.text)
+    except requests.exceptions.RequestException as e:
+        applog.log_api_network_error("paper_monitor.slack", e)
 
 
 # ── Main tick ──────────────────────────────────────────────────────────────────
@@ -531,10 +646,10 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
 
         included = []
         for p in candidates:
-            score, reason = screen(p)
+            score, reason, summary = screen(p)
             print(f"  [{score:>4.1f}] {p['source']:>8} {p['id']} — {p['title'][:80]}")
             if score >= MIN_SCORE:
-                p["score"], p["reason"] = score, reason
+                p["score"], p["reason"], p["summary"] = score, reason, summary
                 included.append(p)
         included.sort(key=lambda x: x["score"], reverse=True)
 
@@ -551,6 +666,11 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
         )
 
         source_counts = ", ".join(f"{k}={v}" for k, v in sorted(by_source.items())) or "none"
+        included_by_source = {}
+        for p in included:
+            included_by_source[p["source"]] = included_by_source.get(p["source"], 0) + 1
+        included_counts = ", ".join(f"{k}={v}" for k, v in sorted(included_by_source.items())) or "none"
+
         meta = {
             "Sources scanned":       "arXiv, CrossRef, OpenAlex, Semantic Scholar",
             "Keywords":              ", ".join(KEYWORDS),
@@ -558,8 +678,15 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
             "Max papers per source": f"arXiv {arxiv_n}, CrossRef {crossref_n}, OpenAlex {openalex_n}, Semantic Scholar {semscholar_n}",
             "Candidates fetched":    f"{len(candidates)} ({source_counts})",
             "Above threshold":       f"{len(included)} (min score {MIN_SCORE}/10)",
+            "Included per source":   included_counts,
             "LLM model":             LLM_CONFIG["model"],
-            "Recipient":             TO_ADDR,
+            "Delivery channels":     ", ".join(
+                ch for ch, on in [
+                    ("email", bool(GMAIL_ADDRESS and GMAIL_APP_PASSWORD)),
+                    ("slack", bool(SLACK_WEBHOOK_URL)),
+                ] if on
+            ) or "none configured",
+            "Recipient":             ", ".join(TO_ADDRS),
             "Schedule":              schedule_str,
             "Ran at":                started_at.strftime("%Y-%m-%d %H:%M:%S %Z").strip() or started_at.strftime("%Y-%m-%d %H:%M:%S"),
             "Next run":              next_run_str,
@@ -569,8 +696,16 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
             print(_render_html(included, date_str, meta) if included else "(empty digest)")
             return included
 
+        delivered = {"email": False, "slack": False}
         if included:
-            send_digest(included, date_str, meta)
+            if GMAIL_ADDRESS and GMAIL_APP_PASSWORD:
+                send_digest(included, date_str, meta)
+                delivered["email"] = True
+            if SLACK_WEBHOOK_URL:
+                send_slack(included, date_str, meta)
+                delivered["slack"] = True
+
+        _log_run(meta, included, len(candidates), delivered)
 
         state["seen_dois"]      = sorted(seen_dois)
         state["seen_arxiv_ids"] = sorted(seen_arxiv)
