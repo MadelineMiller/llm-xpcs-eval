@@ -21,7 +21,7 @@ from langchain_community.document_loaders import PyPDFLoader
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
-from auth_tokens import admin_auth_tokens, is_valid
+from auth_tokens import admin_auth_tokens, is_valid, TOKEN_MAX_AGE
 
 import requests as http_requests  # rename to avoid conflict with FastAPI Request
 
@@ -105,7 +105,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
         if token and is_valid(token):
             response = await call_next(request)
-            response.set_cookie("admin_token", token, httponly=True, max_age=86400)
+            response.set_cookie("admin_token", token, httponly=True, max_age=TOKEN_MAX_AGE)
             return response
         elif cookie_token and is_valid(cookie_token):
             return await call_next(request)

@@ -123,12 +123,16 @@ observer.observe(document.body, { childList: true, subtree: true });
             if (summary.dataset.widened) return;
             summary.dataset.widened = 'true';
             let container = summary.parentElement;
-            for (let i = 0; i < 12; i++) {
-                if (!container || container === document.body) break;
+            // Walk only a few levels — a deeper walk can pick a top-level
+            // layout wrapper whose forced width overflows the viewport and
+            // produces a second (horizontal) scrollbar on the page.
+            for (let i = 0; i < 3; i++) {
+                if (!container || container === document.body || container === document.documentElement) break;
                 if (container.offsetWidth > 200 && container.offsetWidth < window.innerWidth * 0.85) {
                     container.style.minWidth = '540px';
-                    container.style.width = '42vw';
-                    container.style.maxWidth = '780px';
+                    container.style.width = 'min(42vw, 780px)';
+                    container.style.maxWidth = 'min(780px, calc(100vw - 40px))';
+                    container.style.boxSizing = 'border-box';
                     break;
                 }
                 container = container.parentElement;

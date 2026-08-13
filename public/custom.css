@@ -142,6 +142,12 @@ button[class*="upload"],
     display: none !important;
 }
 
+/* Safety net: never let horizontal overflow from a child element create
+   a second scrollbar at the document level (on top of Chainlit's own). */
+html {
+    overflow-x: hidden;
+}
+
 
 
 

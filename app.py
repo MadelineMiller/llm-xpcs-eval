@@ -167,13 +167,20 @@ def call_argo_llm(messages):
         result = response.json()
 
         if 'choices' in result:
-            return result['choices'][0]['message']['content']
+            content = result['choices'][0]['message']['content']
         elif 'response' in result:
-            return result['response']
+            content = result['response']
         elif 'content' in result:
-            return result['content']
+            content = result['content']
         else:
             return f"Unexpected response format: {result}"
+
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        return content
 
     except requests.exceptions.RequestException as e:
         applog.log_api_network_error("argo_llm", e)
@@ -276,6 +283,12 @@ def rerank_chunks(question: str, candidates: list, weights: dict = None) -> list
         else:
             return candidates
 
+        if isinstance(text, list):
+            text = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in text
+            )
+
         # Strip markdown code fences if the model wrapped the JSON anyway
         text = re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=re.IGNORECASE)
         text = re.sub(r'\s*```$', '', text.strip())
@@ -310,9 +323,18 @@ def rerank_chunks(question: str, candidates: list, weights: dict = None) -> list
 @cl.password_auth_callback
 def auth_callback(username: str, password: str):
     if not LDAP_ADMIN_PASSWORD:
-        print("[AUTH] LDAP_ADMIN_PASSWORD not set in .env")
+        # Local dev bypass — active only when LDAP is not configured.
+        # Do not enable in production; set LDAP_ADMIN_PASSWORD to disable this branch.
+        dev_username = os.getenv("DEV_USERNAME", "admin")
+        dev_password = os.getenv("DEV_PASSWORD", "admin")
+        if username == dev_username and password == dev_password:
+            print(f"[AUTH] Dev bypass login: {username}")
+            applog.log_login_success(username, username, "")
+            return cl.User(identifier=username, metadata={"name": username, "email": ""})
+        print("[AUTH] LDAP not configured; dev bypass credentials rejected")
+        applog.log_login_failure(username, "dev_bypass_invalid")
         return None
-    
+
     # Sanitize username to prevent LDAP injection
     if not username.isalnum():
         print(f"[AUTH] Invalid username format: {username}")

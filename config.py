@@ -17,7 +17,7 @@ RETRIEVAL_CONFIG = {
 
 # LLM Configuration
 LLM_CONFIG = {
-    'model': 'claudeopus41',
+    'model': 'claudesonnet4',
     'temperature': 0.7,
     'top_p': 0.9,
     'max_tokens': 2000,        # Anthropic models use max_tokens
