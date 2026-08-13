@@ -64,13 +64,20 @@ def call_argo_llm(messages):
         response.raise_for_status()
         result = response.json()
         if 'choices' in result:
-            return result['choices'][0]['message']['content']
+            content = result['choices'][0]['message']['content']
         elif 'response' in result:
-            return result['response']
+            content = result['response']
         elif 'content' in result:
-            return result['content']
+            content = result['content']
         else:
             return f"Unexpected response format: {result}"
+
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        return content
     except requests.exceptions.RequestException as e:
         applog.log_api_network_error("argo_llm", e)
         return f"Network error calling Argo API: {str(e)}"

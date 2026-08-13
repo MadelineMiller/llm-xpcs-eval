@@ -141,6 +141,9 @@ ARGO_USER = os.getenv('ARGO_USER', 'your_anl_username')
 
 print("Ready!")
 
+from agent import paper_monitor
+paper_monitor.start_background()
+
 
 # ============================================================================
 # API FUNCTIONS
