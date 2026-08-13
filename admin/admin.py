@@ -226,6 +226,86 @@ async def admin_page():
 
     badge_hidden = "hidden" if pending_count == 0 else ""
 
+    # ── Papers-by-topic tab data ──
+    tagged   = [d for d in docs if d.get("sample_type")]
+    untagged = [d for d in docs if not d.get("sample_type")]
+
+    sample_type_counts: dict[str, int] = {}
+    topic_counts: dict[str, int] = {}
+    for d in tagged:
+        st = d["sample_type"]
+        sample_type_counts[st] = sample_type_counts.get(st, 0) + 1
+        for t in d.get("topics", []):
+            topic_counts[t] = topic_counts.get(t, 0) + 1
+
+    sample_type_chip_html = " ".join(
+        f'<button class="tag-chip" data-sample-type="{html_lib.escape(st.lower())}" '
+        f'onclick="toggleSampleFilter(this)">{html_lib.escape(st)} '
+        f'<span class="chip-count">{n}</span></button>'
+        for st, n in sorted(sample_type_counts.items(), key=lambda x: (-x[1], x[0]))
+    ) or '<span class="chip-cloud-empty">No sample types tagged yet.</span>'
+
+    top_topics = sorted(topic_counts.items(), key=lambda x: (-x[1], x[0]))[:40]
+    topic_chip_html = " ".join(
+        f'<button class="tag-chip" data-topic="{html_lib.escape(t.lower())}" '
+        f'onclick="toggleTopicFilter(this)">{html_lib.escape(t)} '
+        f'<span class="chip-count">{n}</span></button>'
+        for t, n in top_topics
+    ) or '<span class="chip-cloud-empty">No topics tagged yet.</span>'
+
+    topic_docs_html = ""
+    for doc in sorted(tagged, key=lambda d: (d["sample_type"], d["title"].lower())):
+        source_ = doc["source"]
+        title_ = clean_title(doc["title"])
+        st_ = doc["sample_type"]
+        topics_list = doc.get("topics", [])
+        authors_ = doc["authors"]
+        if len(authors_) > 2:
+            author_str_ = f"{authors_[0]} et al."
+        elif authors_:
+            author_str_ = ", ".join(authors_)
+        else:
+            author_str_ = "Unknown"
+        year_ = doc.get("year", "")
+        doi_ = doc.get("doi", "")
+        url_ = doc.get("url", "")
+
+        chips_ = " ".join(
+            f'<span class="topic-chip-inline">{html_lib.escape(t)}</span>'
+            for t in topics_list
+        )
+        doi_html = ""
+        if doi_ and url_:
+            doi_html = f' &middot; <a href="{html_lib.escape(url_)}" target="_blank" class="doi-link">{html_lib.escape(doi_)}</a>'
+        elif doi_:
+            doi_html = f' &middot; {html_lib.escape(doi_)}'
+
+        data_sample_type = html_lib.escape(st_.lower())
+        data_topics      = html_lib.escape("|".join(t.lower() for t in topics_list))
+        data_title_t     = html_lib.escape((title_ or "").lower())
+        data_author_t    = html_lib.escape(author_str_.lower())
+
+        topic_docs_html += f"""
+        <div class="topic-doc" data-sample-type="{data_sample_type}" data-topics="{data_topics}" data-title="{data_title_t}" data-author="{data_author_t}">
+            <div class="topic-doc-header">
+                <strong>{html_lib.escape(title_ or source_)}</strong>
+                <span class="sample-type-badge">{html_lib.escape(st_)}</span>
+            </div>
+            <div class="topic-doc-meta">{html_lib.escape(author_str_)}{f" &middot; {year_}" if year_ else ""}{doi_html}</div>
+            <div class="topic-doc-chips">{chips_}</div>
+        </div>
+        """
+
+    untagged_msg_html = ""
+    if untagged:
+        untagged_msg_html = (
+            f'<div class="untagged-note">'
+            f'<i class="fa-solid fa-circle-info"></i> '
+            f'{len(untagged)} document(s) not yet tagged. '
+            f'Run <code>python -m admin.tag_documents</code> from the repo directory to tag them.'
+            f'</div>'
+        )
+
     rows = ""
     for doc in docs:
         source = doc["source"]
@@ -296,8 +376,8 @@ async def admin_page():
     <style>
         body {{
             font-family: Arial, sans-serif;
-            padding: 30px;
-            max-width: 1100px;
+            padding: 30px 60px;
+            max-width: 1600px;
             margin: 0 auto;
             background: #1a1a1a;
             color: #e0e0e0;
@@ -688,6 +768,80 @@ async def admin_page():
             font-size: 15px;
             display: none;
         }}
+
+        /* ── Papers-by-topic tab ── */
+        .tag-section {{ margin: 16px 0; }}
+        .tag-section-title {{ font-weight: bold; color: #aaa; margin-bottom: 8px; }}
+        .chip-cloud {{
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 6px 8px;
+            background: #1e1e1e;
+            border-radius: 6px;
+        }}
+        .chip-cloud-empty {{ color: #777; font-style: italic; padding: 4px; }}
+        .tag-chip {{
+            display: inline-block;
+            padding: 5px 12px;
+            margin: 3px;
+            background: #2a2a2a;
+            color: #ddd;
+            border: 1px solid #555;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 13px;
+        }}
+        .tag-chip:hover {{ border-color: #2196f3; }}
+        .tag-chip.active {{ background: #2196f3; color: #fff; border-color: #2196f3; }}
+        .chip-count {{ color: #888; margin-left: 5px; font-size: 11px; }}
+        .tag-chip.active .chip-count {{ color: #e0e0e0; }}
+        .topic-doc {{
+            padding: 12px 14px;
+            margin: 8px 0;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 6px;
+        }}
+        .topic-doc-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }}
+        .topic-doc-meta {{ color: #aaa; font-size: 13px; margin: 4px 0; }}
+        .topic-doc-chips {{ margin-top: 6px; }}
+        .topic-chip-inline {{
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 2px 3px 2px 0;
+            background: #333;
+            color: #ccc;
+            border-radius: 10px;
+            font-size: 12px;
+        }}
+        .sample-type-badge {{
+            background: #2196f3;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }}
+        .untagged-note {{
+            padding: 10px 14px;
+            margin: 12px 0;
+            background: #332b1a;
+            border-left: 3px solid #d4a029;
+            color: #e0d0a0;
+            border-radius: 4px;
+        }}
+        .untagged-note code {{
+            background: #000;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #ffd580;
+        }}
     </style>
 </head>
 <body>
@@ -701,6 +855,9 @@ async def admin_page():
         <button class="tab-btn" id="tab-btn-queue" onclick="switchTab('queue')">
             <i class="fa-solid fa-inbox"></i> Review Queue
             <span class="queue-badge {badge_hidden}" id="pendingBadge">{pending_count}</span>
+        </button>
+        <button class="tab-btn" id="tab-btn-topics" onclick="switchTab('topics')">
+            <i class="fa-solid fa-tags"></i> Papers by topic
         </button>
     </div>
 
@@ -781,6 +938,38 @@ async def admin_page():
             <i class="fa-solid fa-circle-check"></i> No papers in this category.
         </p>
     </div><!-- /tab-queue -->
+
+    <div id="tab-topics" class="tab-content" style="display:none">
+        <p class="subtitle">
+            Papers grouped by sample type (fixed taxonomy) and freeform topic tags.<br>
+            Click chips to filter. Multiple sample-type chips = OR; multiple topic chips = AND.
+        </p>
+
+        {untagged_msg_html}
+
+        <div class="search-wrapper">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" class="search-box" id="topicsSearchBox" placeholder="Search title or author..." oninput="filterTopicDocs()">
+        </div>
+
+        <div class="tag-section">
+            <div class="tag-section-title"><i class="fa-solid fa-flask"></i> Sample types</div>
+            <div class="chip-cloud" id="sampleTypeChips">{sample_type_chip_html}</div>
+        </div>
+
+        <div class="tag-section">
+            <div class="tag-section-title"><i class="fa-solid fa-hashtag"></i> Top topics</div>
+            <div class="chip-cloud" id="topicChips">{topic_chip_html}</div>
+        </div>
+
+        <p class="doc-count" id="topicDocCount">{len(tagged)} tagged documents</p>
+
+        <div id="topicDocs">
+            {topic_docs_html}
+        </div>
+
+        <p class="no-results" id="topicsNoResults" style="display:none"><i class="fa-solid fa-circle-exclamation"></i> No documents match your filter.</p>
+    </div><!-- /tab-topics -->
 
     <div class="toast" id="toast"><i class="fa-solid fa-check"></i> <span id="toastMsg">Saved!</span></div>
 
@@ -1109,10 +1298,46 @@ async def admin_page():
         function switchTab(tab) {{
             document.getElementById('tab-weights').style.display = tab === 'weights' ? '' : 'none';
             document.getElementById('tab-queue').style.display   = tab === 'queue'   ? '' : 'none';
+            document.getElementById('tab-topics').style.display  = tab === 'topics'  ? '' : 'none';
             document.getElementById('tab-btn-weights').classList.toggle('active', tab === 'weights');
             document.getElementById('tab-btn-queue').classList.toggle('active', tab === 'queue');
+            document.getElementById('tab-btn-topics').classList.toggle('active', tab === 'topics');
             if (tab === 'queue') filterQueue(activeFilter);
             window.location.hash = tab;
+        }}
+
+        // ── Papers by topic: chip filters ──
+        function toggleSampleFilter(btn) {{ btn.classList.toggle('active'); filterTopicDocs(); }}
+        function toggleTopicFilter(btn)  {{ btn.classList.toggle('active'); filterTopicDocs(); }}
+
+        function filterTopicDocs() {{
+            const q = (document.getElementById('topicsSearchBox').value || '').trim().toLowerCase();
+            const activeSampleTypes = Array.from(
+                document.querySelectorAll('#sampleTypeChips .tag-chip.active')
+            ).map(function(el) {{ return el.dataset.sampleType; }});
+            const activeTopics = Array.from(
+                document.querySelectorAll('#topicChips .tag-chip.active')
+            ).map(function(el) {{ return el.dataset.topic; }});
+
+            let shown = 0;
+            document.querySelectorAll('#topicDocs .topic-doc').forEach(function(el) {{
+                const st     = el.dataset.sampleType || '';
+                const topics = (el.dataset.topics || '').split('|').filter(Boolean);
+                const title  = el.dataset.title || '';
+                const author = el.dataset.author || '';
+                let ok = true;
+                if (activeSampleTypes.length && activeSampleTypes.indexOf(st) === -1) ok = false;
+                if (ok && activeTopics.length) {{
+                    for (let i = 0; i < activeTopics.length; i++) {{
+                        if (topics.indexOf(activeTopics[i]) === -1) {{ ok = false; break; }}
+                    }}
+                }}
+                if (ok && q && !(title.indexOf(q) !== -1 || author.indexOf(q) !== -1)) ok = false;
+                el.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            }});
+            document.getElementById('topicDocCount').textContent = shown + ' tagged documents shown';
+            document.getElementById('topicsNoResults').style.display = shown === 0 ? '' : 'none';
         }}
 
         // ── Review Queue ──

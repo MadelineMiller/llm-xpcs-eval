@@ -93,6 +93,28 @@ python agent/agent.py
 
 Configure target beamline URLs in the `BEAMLINE_SOURCES` list at the top of `agent/agent.py`.
 
+### Daily Paper Digest (Email + Slack)
+
+A separate lightweight scanner (`agent/paper_monitor.py`) polls arXiv, CrossRef, OpenAlex, and Semantic Scholar daily for new XPCS papers, scores each with an LLM (0–10 relevance + one-sentence summary), and delivers a digest of everything above the threshold to email and/or a Slack channel.
+
+Configure in `.env`:
+
+```
+GMAIL_ADDRESS=you@gmail.com
+GMAIL_APP_PASSWORD=...
+PAPER_MONITOR_TO=you@anl.gov, alt@gmail.com
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...   # optional
+```
+
+Run manually or let the built-in scheduler tick daily at 06:00 America/Chicago:
+
+```bash
+python -m agent.paper_monitor --once --limit 5    # one immediate run
+python -m agent.paper_monitor                     # long-running scheduler
+```
+
+Each real run appends a JSON record to `logs/paper_monitor.log` (candidates, delivery channels, per-paper metadata).
+
 ---
 
 <h2><img src="https://img.shields.io/badge/Part_2-blue?style=for-the-badge"/>&nbsp;&nbsp;&nbsp;RAG Chatbot</h2>
@@ -168,6 +190,20 @@ Shows papers submitted by the harvesting agent. For each paper:
 - **Approve** — ingests the paper (full PDF text if downloaded, otherwise abstract) into Qdrant
 - **Deny** — marks as rejected
 
+## Papers by Topic Tab
+
+Groups every document in Qdrant by a fixed sample-type taxonomy (e.g. *nanoparticle suspension*, *colloidal gel*, *polymer melt*, *methodology*) plus a freeform topic cloud generated per paper. Click chips to filter — sample types are OR, topics are AND — and use the search box to filter by title or author.
+
+Tags live in the Qdrant payload alongside each chunk. Backfill or refresh via:
+
+```bash
+python -m admin.tag_documents                    # tag untagged docs
+python -m admin.tag_documents --retag            # re-tag everything
+python -m admin.tag_documents --source foo.pdf   # one specific doc
+```
+
+Edit the fixed sample-type list in `admin/topic_taxonomy.py`.
+
 ---
 
 ## Repository Structure
@@ -181,10 +217,13 @@ llm-xpcs-eval/
 ├── doc_weights.json         # Per-document weight store
 ├── agent/
 │   ├── agent.py             # Harvesting agent + tool implementations
+│   ├── paper_monitor.py     # Daily arXiv/CrossRef/etc. scanner → email + Slack digest
 │   └── review_queue.json    # Papers pending human review
 ├── admin/
-│   ├── admin.py             # FastAPI admin panel (weights + review queue)
-│   └── weights_manager.py   # Weight load/save/apply helpers
+│   ├── admin.py             # FastAPI admin panel (weights, review queue, papers-by-topic)
+│   ├── weights_manager.py   # Weight load/save/apply helpers
+│   ├── tag_documents.py     # Backfill CLI: assigns sample_type + topics to Qdrant docs
+│   └── topic_taxonomy.py    # Fixed sample-type list + tagging prompt
 ├── rag/
 │   ├── ingest_documents.py  # PDF → chunks → embeddings → Qdrant
 │   ├── ingest_reference_docs.py
