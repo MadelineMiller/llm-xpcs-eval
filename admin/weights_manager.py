@@ -15,7 +15,16 @@ def save_weights(weights: dict):
         json.dump(weights, f, indent=2)
 
 def get_all_docs(client: QdrantClient, collection_name: str) -> list[dict]:
-    """Get one entry per unique document from Qdrant."""
+    """Get one entry per unique document from Qdrant.
+
+    Returned dicts include:
+      source        — basename (dedup key, used by weights + UI display)
+      source_full   — full path from payload (used as set_payload filter value)
+      title, authors, year, journal, doi, url  — bibliographic metadata
+      sample_type   — fixed-taxonomy tag ("" if not yet tagged)
+      topics        — freeform tag list ([] if not yet tagged)
+      text_excerpt  — first-chunk text (≤2000 chars), used by the tagger
+    """
     seen = set()
     docs = []
     offset = None
@@ -30,19 +39,24 @@ def get_all_docs(client: QdrantClient, collection_name: str) -> list[dict]:
         )
         for point in results:
             p = point.payload
-            source = os.path.basename(p.get("source", "unknown"))
+            source_full = p.get("source", "unknown")
+            source = os.path.basename(source_full)
             title = p.get("title") or source
 
             if source not in seen:
                 seen.add(source)
                 docs.append({
-                    "source":  source,
-                    "title":   title,
-                    "authors": p.get("authors") or [],
-                    "year":    p.get("year") or "",
-                    "journal": p.get("journal") or "",
-                    "doi":     p.get("doi") or "",
-                    "url":     p.get("url") or "",
+                    "source":       source,
+                    "source_full":  source_full,
+                    "title":        title,
+                    "authors":      p.get("authors") or [],
+                    "year":         p.get("year") or "",
+                    "journal":      p.get("journal") or "",
+                    "doi":          p.get("doi") or "",
+                    "url":          p.get("url") or "",
+                    "sample_type":  p.get("sample_type") or "",
+                    "topics":       p.get("topics") or [],
+                    "text_excerpt": (p.get("text") or "")[:2000],
                 })
 
         if offset is None:
