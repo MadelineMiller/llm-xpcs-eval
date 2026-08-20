@@ -142,10 +142,33 @@ button[class*="upload"],
     display: none !important;
 }
 
-/* Safety net: never let horizontal overflow from a child element create
-   a second scrollbar at the document level (on top of Chainlit's own). */
-html {
-    overflow-x: hidden;
+/* Safety net: prevent the outer document from adding its own scrollbar. */
+html, body {
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    height: 100vh !important;
+    margin: 0 !important;
+}
+
+#root {
+    height: 100vh !important;
+    overflow: hidden !important;
+}
+
+/* Root cause of the double scroll bar: Chainlit's layout has TWO nested
+   overflow-y-auto divs in the chat pane — the outer wrapper AND its
+   direct scroll child. Both show scrollbars when content is tall.
+   The outer one has the extra "relative" class; kill its scroll so only
+   the inner (content-hugging) div actually scrolls. */
+div.relative.flex.flex-col.flex-grow.overflow-y-auto {
+    overflow-y: hidden !important;
+}
+
+/* Fallback selector for the same pattern in case the class list shifts:
+   any overflow-y-auto that DIRECTLY contains another overflow-y-auto
+   should not itself scroll — only the innermost one should. */
+div.overflow-y-auto:has(> div.overflow-y-auto) {
+    overflow-y: hidden !important;
 }
 
 

@@ -440,19 +440,17 @@ def _render_metadata_plain(meta: dict) -> str:
     return "\n\n----------------------------------------\nAbout this digest\n\n" + lines
 
 
-def _render_html(papers: list[dict], date_str: str, meta: dict) -> str:
+def _render_html(papers: list[dict], date_str: str, meta: dict, featured_count: Optional[int] = None) -> str:
     row = "<div style='margin:2px 0'><b>{label}:</b> {value}</div>"
 
-    entries = []
-    for i, p in enumerate(papers, 1):
+    def _entry(i: int, p: dict) -> str:
         authors = ", ".join(p["authors"][:6]) + (" et al." if len(p["authors"]) > 6 else "")
         venue_year = escape(p.get("venue", "") or "?")
         if p.get("year"):
             venue_year += f", {escape(p['year'])}"
         abstract = escape(p.get("abstract", "")) or "<i>(no abstract available)</i>"
         link_html = f"<a href='{escape(p['url'])}'>{escape(p.get('id', p['url']))}</a>"
-
-        entries.append(
+        return (
             f"<div style='margin:0 0 1.5em 0; padding-bottom:1em; border-bottom:1px solid #ddd'>"
             f"<div style='font-size:1.05em; margin-bottom:6px'><b>#{i}</b></div>"
             + row.format(label="Title",     value=f"<b>{escape(p['title'])}</b>")
@@ -465,22 +463,43 @@ def _render_html(papers: list[dict], date_str: str, meta: dict) -> str:
             + f"<div style='margin-top:4px'>{abstract}</div>"
             + "</div>"
         )
-    return (
-        f"<h2 style='margin-bottom:0.75em'>{len(papers)} new XPCS-relevant papers &mdash; {escape(date_str)}</h2>"
-        + "".join(entries)
-        + _render_metadata_html(meta)
-    )
+
+    cutoff = featured_count if (featured_count is not None and featured_count < len(papers)) else len(papers)
+    featured = "".join(_entry(i, p) for i, p in enumerate(papers[:cutoff], 1))
+    extras = papers[cutoff:]
+
+    if extras:
+        header = f"<h2 style='margin-bottom:0.75em'>Top {cutoff} most relevant &mdash; {escape(date_str)}</h2>"
+        extras_header = (
+            f"<h2 style='margin:2em 0 0.75em 0; padding-top:1em; border-top:3px solid #888'>"
+            f"Additional relevant papers ({len(extras)})"
+            f"</h2>"
+            f"<div style='margin-bottom:1em; color:#666; font-style:italic'>"
+            f"Also above the relevance threshold, ranked below the top {cutoff}."
+            f"</div>"
+        )
+        extras_html = "".join(_entry(i, p) for i, p in enumerate(extras, cutoff + 1))
+        body = header + featured + extras_header + extras_html
+    else:
+        body = f"<h2 style='margin-bottom:0.75em'>{len(papers)} new XPCS-relevant papers &mdash; {escape(date_str)}</h2>" + featured
+
+    return body + _render_metadata_html(meta)
 
 
-def send_digest(papers: list[dict], date_str: str, meta: dict) -> None:
+def send_digest(papers: list[dict], date_str: str, meta: dict, featured_count: Optional[int] = None) -> None:
     if not (GMAIL_ADDRESS and GMAIL_APP_PASSWORD):
         applog.log_error("paper_monitor.email", "GMAIL_ADDRESS/GMAIL_APP_PASSWORD not set; digest not sent")
         return
 
+    cutoff = featured_count if (featured_count is not None and featured_count < len(papers)) else len(papers)
+    extras_n = len(papers) - cutoff
+    subject_tail = f"top {cutoff} + {extras_n} more" if extras_n else f"{len(papers)} papers"
+
     msg = EmailMessage()
-    msg["Subject"] = f"XPCS Paper Digest — {date_str} — {len(papers)} papers"
+    msg["Subject"] = f"XPCS Paper Digest — {date_str} — {subject_tail}"
     msg["From"] = GMAIL_ADDRESS
     msg["To"] = ", ".join(TO_ADDRS)
+
     def _plain_entry(i, p):
         authors = ", ".join(p["authors"][:6]) + (" et al." if len(p["authors"]) > 6 else "")
         venue = (p.get("venue") or "?") + (f", {p['year']}" if p.get("year") else "")
@@ -496,12 +515,23 @@ def send_digest(papers: list[dict], date_str: str, meta: dict) -> None:
             f"\nAbstract:\n{abstract}\n"
         )
 
-    plain = "\n----------------------------------------\n\n".join(
-        _plain_entry(i, p) for i, p in enumerate(papers, 1)
-    )
-    plain = (plain or "(no papers)") + _render_metadata_plain(meta)
+    sep = "\n----------------------------------------\n\n"
+    featured_plain = sep.join(_plain_entry(i, p) for i, p in enumerate(papers[:cutoff], 1))
+    if extras_n:
+        extras_plain = sep.join(_plain_entry(i, p) for i, p in enumerate(papers[cutoff:], cutoff + 1))
+        divider = (
+            f"\n\n========================================\n"
+            f"ADDITIONAL RELEVANT PAPERS ({extras_n})\n"
+            f"Also above threshold, ranked below the top {cutoff}.\n"
+            f"========================================\n\n"
+        )
+        plain = featured_plain + divider + extras_plain
+    else:
+        plain = featured_plain or "(no papers)"
+    plain += _render_metadata_plain(meta)
+
     msg.set_content(plain)
-    msg.add_alternative(_render_html(papers, date_str, meta), subtype="html")
+    msg.add_alternative(_render_html(papers, date_str, meta, featured_count=featured_count), subtype="html")
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
         s.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
@@ -574,9 +604,10 @@ def send_slack(papers: list[dict], date_str: str, meta: dict) -> None:
 
 # ── Main tick ──────────────────────────────────────────────────────────────────
 
-def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
+def run_once(dry_run: bool = False, limit: Optional[int] = None, max_papers: Optional[int] = None) -> list[dict]:
     """Run one monitor tick. Returns the list of scored papers included in the digest.
-    limit caps the per-source fetch size (useful for quick smoke tests)."""
+    limit caps the per-source fetch size (useful for quick smoke tests).
+    max_papers caps the final digest to the top-N highest-scoring papers."""
     try:
         started_at = datetime.now()
         state = _load_state()
@@ -652,9 +683,14 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
                 p["score"], p["reason"], p["summary"] = score, reason, summary
                 included.append(p)
         included.sort(key=lambda x: x["score"], reverse=True)
+        total_above_threshold = len(included)
+        featured_count = min(max_papers, total_above_threshold) if max_papers is not None else total_above_threshold
 
         date_str = started_at.strftime("%Y-%m-%d")
-        print(f"[paper_monitor] {len(included)} above threshold ({MIN_SCORE})")
+        if max_papers is not None and total_above_threshold > featured_count:
+            print(f"[paper_monitor] {total_above_threshold} above threshold ({MIN_SCORE}); top {featured_count} featured, {total_above_threshold - featured_count} additional")
+        else:
+            print(f"[paper_monitor] {total_above_threshold} above threshold ({MIN_SCORE})")
 
         is_background = threading.current_thread().name == "paper_monitor"
         next_run_dt   = _next_run_at(datetime.now(timezone.utc))
@@ -677,7 +713,12 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
             "Date window":           f"arXiv: newest N submissions; CrossRef/OpenAlex: on/after {since_date}; Semantic Scholar: year {since_date[:4]}+",
             "Max papers per source": f"arXiv {arxiv_n}, CrossRef {crossref_n}, OpenAlex {openalex_n}, Semantic Scholar {semscholar_n}",
             "Candidates fetched":    f"{len(candidates)} ({source_counts})",
-            "Above threshold":       f"{len(included)} (min score {MIN_SCORE}/10)",
+            "Above threshold":       f"{total_above_threshold} (min score {MIN_SCORE}/10)",
+            "Displayed":             (
+                f"top {featured_count} most relevant highlighted, {total_above_threshold - featured_count} additional below"
+                if total_above_threshold > featured_count
+                else f"all {total_above_threshold}"
+            ),
             "Included per source":   included_counts,
             "LLM model":             LLM_CONFIG["model"],
             "Delivery channels":     ", ".join(
@@ -693,16 +734,16 @@ def run_once(dry_run: bool = False, limit: Optional[int] = None) -> list[dict]:
         }
 
         if dry_run:
-            print(_render_html(included, date_str, meta) if included else "(empty digest)")
+            print(_render_html(included, date_str, meta, featured_count=featured_count) if included else "(empty digest)")
             return included
 
         delivered = {"email": False, "slack": False}
         if included:
             if GMAIL_ADDRESS and GMAIL_APP_PASSWORD:
-                send_digest(included, date_str, meta)
+                send_digest(included, date_str, meta, featured_count=featured_count)
                 delivered["email"] = True
             if SLACK_WEBHOOK_URL:
-                send_slack(included, date_str, meta)
+                send_slack(included[:featured_count], date_str, meta)
                 delivered["slack"] = True
 
         _log_run(meta, included, len(candidates), delivered)
@@ -759,6 +800,7 @@ if __name__ == "__main__":
     ap.add_argument("--dry-run", action="store_true", help="print digest, do not send email or mutate state")
     ap.add_argument("--reset-state", action="store_true", help="delete the persistent state file and exit")
     ap.add_argument("--limit", type=int, default=None, help="cap fetch size per source (smoke test)")
+    ap.add_argument("--max", type=int, default=None, dest="max_papers", help="cap digest to top-N highest-scoring papers")
     args = ap.parse_args()
 
     if args.reset_state:
@@ -770,6 +812,6 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if args.once or args.dry_run:
-        run_once(dry_run=args.dry_run, limit=args.limit)
+        run_once(dry_run=args.dry_run, limit=args.limit, max_papers=args.max_papers)
     else:
         run_loop()

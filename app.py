@@ -141,8 +141,9 @@ ARGO_USER = os.getenv('ARGO_USER', 'your_anl_username')
 
 print("Ready!")
 
-from agent import paper_monitor
-paper_monitor.start_background()
+# Paper digest is run daily via cron (see `crontab -l`) instead of in-process.
+# from agent import paper_monitor
+# paper_monitor.start_background()
 
 
 # ============================================================================
@@ -485,7 +486,56 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
     }
     
     cl.user_session.set("system_prompt", system_prompt)
-    
+
+    # Focus-on-one-paper: build the settings dropdown from the current corpus.
+    # Selection is stored in the session as focus_source (basename) + focus_title (display).
+    ALL_PAPERS_LABEL = "All papers (default)"
+    try:
+        docs = get_all_docs(
+            client,
+            os.getenv('QDRANT_COLLECTION_NAME', 'xpcs_documents'),
+        )
+    except Exception as e:
+        print(f"[FOCUS] get_all_docs failed: {e}")
+        docs = []
+
+    focus_values = [ALL_PAPERS_LABEL]
+    focus_options = {ALL_PAPERS_LABEL: {"source": None, "source_full": None, "title": None}}
+    for d in docs:
+        label = f"{d['title']} — {d['source']}"
+        # Chainlit Select requires unique values; suffix on collision.
+        if label in focus_options:
+            label = f"{label} ({d['source_full']})"
+        focus_values.append(label)
+        focus_options[label] = {
+            "source": d["source"],
+            "source_full": d["source_full"],
+            "title": d["title"],
+        }
+
+    cl.user_session.set("focus_source", None)
+    cl.user_session.set("focus_source_full", None)
+    cl.user_session.set("focus_title", None)
+    cl.user_session.set("focus_options", focus_options)
+
+    await cl.ChatSettings([
+        cl.input_widget.Select(
+            id="focus_source",
+            label="Focus on paper",
+            values=focus_values,
+            initial_index=0,
+        ),
+    ]).send()
+
+    welcome_actions = [
+        cl.Action(
+            name="focus_open",
+            payload={},
+            label="🎯 Focus on one paper",
+            tooltip="Scope the next question(s) to a single paper",
+        ),
+    ]
+
     await cl.Message(
         content="**Welcome to the XPCS Hypothesis Evaluator!**\n\n"
             "I can help you map out and evaluate your XPCS experiment plan at beamline 8-ID.\n\n"
@@ -493,9 +543,11 @@ Never answer out-of-scope questions, even if you have relevant knowledge.
             "- Formulate and refine your scientific hypothesis for XPCS experiments\n\n"
             "- Check feasibility of testing your hypothesis against 8-ID's resources and capabilities\n\n"
             "My answers are based on XPCS research papers and textbooks.\n\n"
-            "I'll cite sources so you can verify and explore further."
+            "I'll cite sources so you can verify and explore further.\n\n"
+            "💡 **Tip:** To ask questions of a single paper, click the **🎯 Focus on one paper** button below."
             "\n\n---\n\n"
-            f"⚙️ **Admin:** [Manage document weights or review the document queue]({APP_HOST}:8001?token={token})"
+            f"⚙️ **Admin:** [Manage document weights or review the document queue]({APP_HOST}:8001?token={token})",
+        actions=welcome_actions,
     ).send()
 
 @cl.on_chat_end
@@ -504,12 +556,134 @@ async def on_chat_end():
     username = getattr(user, "identifier", "unknown") if user else "unknown"
     applog.log_session_end(username)
 
+
+@cl.on_settings_update
+async def on_settings_update(settings):
+    label = settings.get("focus_source")
+    focus_options = cl.user_session.get("focus_options") or {}
+    choice = focus_options.get(label, {"source": None, "source_full": None, "title": None})
+
+    cl.user_session.set("focus_source", choice["source"])
+    cl.user_session.set("focus_source_full", choice.get("source_full"))
+    cl.user_session.set("focus_title", choice["title"])
+
+    if choice["source"] is None:
+        await cl.Message(content="🔓 Focus cleared — searching all papers.").send()
+    else:
+        await cl.Message(
+            content=f"🎯 Focused on: **{choice['title']}**. Only this paper will be searched."
+        ).send()
+
+
+async def _remove_picker_message():
+    """Remove the current focus-picker message from the chat, if one is open."""
+    picker_msg = cl.user_session.get("focus_picker_msg")
+    if picker_msg is not None:
+        try:
+            await picker_msg.remove()
+        except Exception as e:
+            print(f"[FOCUS] Could not remove picker message: {e}")
+        cl.user_session.set("focus_picker_msg", None)
+
+
+@cl.action_callback("focus_open")
+async def focus_open(action: cl.Action):
+    """Show a picker with one button per paper."""
+    # If a previous picker is still on screen, take it down before opening a new one.
+    await _remove_picker_message()
+
+    focus_options = cl.user_session.get("focus_options") or {}
+
+    picker_actions = []
+    for _label, choice in focus_options.items():
+        if choice["source"] is None:
+            continue  # skip the "All papers" sentinel — that's the Clear button below
+        display = choice["title"]
+        if len(display) > 70:
+            display = display[:67] + "…"
+        picker_actions.append(
+            cl.Action(
+                name="focus_pick",
+                payload={
+                    "source": choice["source"],
+                    "source_full": choice.get("source_full"),
+                    "title": choice["title"],
+                },
+                label=f"📄 {display}",
+                tooltip=choice["source"],
+            )
+        )
+    picker_actions.append(
+        cl.Action(
+            name="focus_clear",
+            payload={},
+            label="🔓 Search all papers (clear focus)",
+        )
+    )
+
+    paper_count = len(picker_actions) - 1
+    picker_msg = cl.Message(
+        content=(
+            f"**Pick a paper to focus on** — {paper_count} available.\n\n"
+            "Click a paper below and your next questions will only search that one document. "
+            "Click **🔓 Search all papers** to go back to the full corpus."
+        ),
+        actions=picker_actions,
+    )
+    await picker_msg.send()
+    cl.user_session.set("focus_picker_msg", picker_msg)
+
+
+@cl.action_callback("focus_pick")
+async def focus_pick(action: cl.Action):
+    src = action.payload.get("source")
+    src_full = action.payload.get("source_full")
+    title = action.payload.get("title") or src
+    cl.user_session.set("focus_source", src)
+    cl.user_session.set("focus_source_full", src_full)
+    cl.user_session.set("focus_title", title)
+
+    # Hide the picker now that a choice has been made.
+    await _remove_picker_message()
+
+    stop_actions = [
+        cl.Action(
+            name="focus_clear",
+            payload={},
+            label="🔓 Stop focusing on this paper",
+            tooltip="Go back to searching all papers",
+        ),
+    ]
+    await cl.Message(
+        content=(
+            f"🎯 Focused on: **{title}**.\n\n"
+            "Only this paper will be searched. Click below to stop, or click "
+            "**🎯 Focus on one paper** in the welcome message to switch papers."
+        ),
+        actions=stop_actions,
+    ).send()
+
+
+@cl.action_callback("focus_clear")
+async def focus_clear(action: cl.Action):
+    cl.user_session.set("focus_source", None)
+    cl.user_session.set("focus_source_full", None)
+    cl.user_session.set("focus_title", None)
+    # Clean up the picker if this was clicked from inside it.
+    await _remove_picker_message()
+    await cl.Message(content="🔓 Focus cleared — searching all papers.").send()
+
 @cl.on_message
 async def main(message: cl.Message):
 
     def _bar(pct: int) -> str:
+        # Use plain ASCII inside an inline-code block. Unicode block-drawing
+        # characters (█ ▓ ░) render inconsistently across browser fonts —
+        # some are wider or taller than others, causing the filled portion to
+        # overflow the box. ASCII '=' and '-' are guaranteed uniform in any
+        # monospace font.
         filled = round(20 * pct / 100)
-        return f"`{'█' * filled}{'░' * (20 - filled)}` {pct}%"
+        return f"`[{'=' * filled}{'-' * (20 - filled)}]` {pct}%"
 
     status_lines = []
 
@@ -543,13 +717,32 @@ async def main(message: cl.Message):
         return query
 
     expanded_query = expand_query(message.content)
-    
+
+    # If the user has picked one paper via the ⚙️ Focus dropdown, scope retrieval to it.
+    focus_source = cl.user_session.get("focus_source")
+    focus_source_full = cl.user_session.get("focus_source_full")
+    focus_title = cl.user_session.get("focus_title")
+
+    # Records in Qdrant store the "source" field inconsistently — some as a
+    # basename ("paper.pdf") and some as a full path ("/data/papers/paper.pdf").
+    # Match on ANY of the known forms so the filter finds the chunks either way.
+    focus_source_values = []
+    if focus_source:
+        focus_source_values.append(focus_source)
+    if focus_source_full and focus_source_full != focus_source:
+        focus_source_values.append(focus_source_full)
+
     # Search for relevant context
     query_vector = embeddings.embed_query(expanded_query)
 
-    base_filter = {
-        "must_not": [{"key": "source", "match": {"text": "x-ray-data-booklet"}}]
-    }
+    if focus_source:
+        base_filter = {
+            "must": [{"key": "source", "match": {"any": focus_source_values}}]
+        }
+    else:
+        base_filter = {
+            "must_not": [{"key": "source", "match": {"text": "x-ray-data-booklet"}}]
+        }
 
     # Primary: broad semantic search
     results = client.query_points(
@@ -565,7 +758,7 @@ async def main(message: cl.Message):
     add_status("Searching by keyword...", pct=30)
     await msg.update()
 
-    from qdrant_client.models import Filter, FieldCondition, MatchText, MatchValue
+    from qdrant_client.models import Filter, FieldCondition, MatchText, MatchValue, MatchAny
 
     class _SyntheticPoint:
         """Wraps a scroll Record to be compatible with apply_weights (.id, .score, .payload)."""
@@ -580,10 +773,16 @@ async def main(message: cl.Message):
     keywords = extract_keywords(message.content)
     kw_added = 0
     if keywords:
-        kw_filter = Filter(
-            must_not=[FieldCondition(key="source", match=MatchValue(value="x-ray-data-booklet"))],
-            must=[FieldCondition(key="text", match=MatchText(text=kw)) for kw in keywords],
-        )
+        if focus_source:
+            kw_filter = Filter(
+                must=[FieldCondition(key="source", match=MatchAny(any=focus_source_values))]
+                + [FieldCondition(key="text", match=MatchText(text=kw)) for kw in keywords],
+            )
+        else:
+            kw_filter = Filter(
+                must_not=[FieldCondition(key="source", match=MatchValue(value="x-ray-data-booklet"))],
+                must=[FieldCondition(key="text", match=MatchText(text=kw)) for kw in keywords],
+            )
         kw_records, _ = client.scroll(
             collection_name=COLLECTION,
             scroll_filter=kw_filter,
@@ -671,12 +870,51 @@ async def main(message: cl.Message):
         source = os.path.basename(result.payload['source'])
         print("  [" + str(idx) + "] score=" + str(round(result.score, 4)) + " | " + source)
 
-    # LLM reranker: filter candidates to those that actually answer the question
-    # Run in executor so the async event loop (and WebSocket keep-alive) stays alive
-    reranked_points = await asyncio.get_event_loop().run_in_executor(
-        None, functools.partial(rerank_chunks, message.content, reranked_points, current_weights)
-    )
-    reranked_points = reranked_points[:100]
+    if focus_source:
+        # Focus mode: skip the LLM reranker entirely and present the paper's
+        # chunks in NATURAL READING ORDER (page ascending). Vector-similarity
+        # ordering was burying the abstract mid-list, so the LLM couldn't find
+        # it for meta-questions like "what is this paper about". Sorting by
+        # page puts abstract → intro → methods → results → conclusions in the
+        # order the LLM expects, and the abstract is always the first thing it reads.
+        all_records, _ = client.scroll(
+            collection_name=COLLECTION,
+            scroll_filter=Filter(must=[FieldCondition(key="source", match=MatchAny(any=focus_source_values))]),
+            limit=200,
+            with_payload=True,
+            with_vectors=False,
+        )
+        print(f"[FOCUS] Full-paper scroll for source in {focus_source_values!r} returned {len(all_records)} records")
+        existing_ids = {getattr(pt, 'id', None) for pt in reranked_points}
+        focus_points = list(reranked_points)
+        for record in all_records:
+            if record.id not in existing_ids:
+                focus_points.append(_SyntheticPoint(record, score=1.0))
+                existing_ids.add(record.id)
+
+        def _page_key(pt):
+            page = pt.payload.get('page', 0)
+            if page is None:
+                page = 0
+            try:
+                page = int(page)
+            except (TypeError, ValueError):
+                page = 0
+            return (page, str(pt.id))
+
+        focus_points.sort(key=_page_key)
+        # Cap to keep the prompt reasonable — 30 chunks × ~1k chars ≈ 30k chars
+        reranked_points = focus_points[:30]
+        print(f"[FOCUS] Skipping reranker; {len(reranked_points)} chunks in page order from {focus_source}")
+        for idx, pt in enumerate(reranked_points, 1):
+            print(f"  [{idx}] page={pt.payload.get('page', '?')} | text[:60]={pt.payload.get('text', '')[:60]!r}")
+    else:
+        # Normal mode: run the LLM reranker to winnow across the corpus.
+        # Run in executor so the async event loop (and WebSocket keep-alive) stays alive
+        reranked_points = await asyncio.get_event_loop().run_in_executor(
+            None, functools.partial(rerank_chunks, message.content, reranked_points, current_weights)
+        )
+        reranked_points = reranked_points[:100]
 
     kept = len(reranked_points)
     add_status("Generating answer...", pct=90)
@@ -707,10 +945,30 @@ async def main(message: cl.Message):
 
 
 
+    # Tell the LLM about the current focus state so meta-questions
+    # ("what paper are you focused on?") get sensible answers and so it doesn't
+    # claim it isn't focused when it actually is.
+    if focus_source:
+        focus_preface = (
+            f"FOCUS MODE: The user has scoped this conversation to a single paper — "
+            f"\"{focus_title}\" (source file: {focus_source}). The passages below are drawn "
+            f"from ONLY this paper, including the opening pages (abstract / introduction).\n"
+            f"- If the user asks what paper you're focused on, answer with the title above.\n"
+            f"- If the user asks a meta-question about the paper (\"what is this paper about\", "
+            f"\"summarize this paper\"), synthesize a summary ONLY from the passages provided. "
+            f"The abstract and introduction chunks are included, so a real summary IS possible — "
+            f"do not refuse. Do NOT infer content from the title or speculate about what a "
+            f"paper with this title 'likely' contains.\n"
+            f"- If the user asks a specific question and the passages don't cover it, say so "
+            f"plainly and suggest they clear focus to search all papers.\n\n"
+        )
+    else:
+        focus_preface = ""
+
     # Build context message for LLM
     if context_parts:
         context = "\n\n".join(context_parts)
-        context_message = f"""CONTEXT FROM XPCS SCIENTIFIC LITERATURE:
+        context_message = f"""{focus_preface}CONTEXT FROM XPCS SCIENTIFIC LITERATURE:
 
 (Passages are ordered by source priority — earlier sources are from higher-priority documents.)
 
@@ -740,16 +998,28 @@ INSTRUCTIONS FOR YOUR RESPONSE:
 DO NOT say "the literature doesn't provide information" - you have {len(context_parts)} relevant passages above!
 
 Provide a comprehensive, well-cited answer based on the passages."""
-        
+
     else:
-        context_message = (
-            "No relevant passages were found for this question.\n\n"
-            "USER QUESTION: " + message.content + "\n\n"
-            "Since no relevant passages were retrieved, respond with:\n"
-            "\"I don't have specific information about this in the XPCS literature database. "
-            "For [topic], please consult [appropriate resource].\"\n\n"
-            "Do NOT attempt to answer from general knowledge."
-        )
+        if focus_source:
+            context_message = (
+                f"{focus_preface}"
+                f"No passages in \"{focus_title}\" matched this question.\n\n"
+                f"USER QUESTION: {message.content}\n\n"
+                "If the user is asking a meta-question about the focus state (e.g. "
+                "\"what paper are you focused on?\"), answer directly using the paper title from the FOCUS MODE note above.\n\n"
+                "Otherwise, tell the user this specific paper doesn't cover their question and "
+                "suggest they either broaden the question or clear focus to search all papers. "
+                "Do NOT claim you aren't focused on any paper — you ARE focused on the one named above."
+            )
+        else:
+            context_message = (
+                "No relevant passages were found for this question.\n\n"
+                "USER QUESTION: " + message.content + "\n\n"
+                "Since no relevant passages were retrieved, respond with:\n"
+                "\"I don't have specific information about this in the XPCS literature database. "
+                "For [topic], please consult [appropriate resource].\"\n\n"
+                "Do NOT attempt to answer from general knowledge."
+            )
     
     # Build messages for Argo API
     messages = [system_prompt]
@@ -817,10 +1087,24 @@ Provide a comprehensive, well-cited answer based on the passages."""
     else:
         source_elements = []
         source_actions = []
-        if not sources:
-            response = answer + "\n\n---\n\n**Note:** No relevant passages were found in the literature database."
+        # Only append the "no passages" note if the LLM ITSELF acknowledged it
+        # couldn't answer. Otherwise the note contradicts a perfectly good reply
+        # (e.g. meta-answers about the focused paper).
+        if not sources and acknowledged_missing:
+            if focus_source:
+                response = (
+                    answer
+                    + f"\n\n---\n\n**Note:** No passages in *{focus_title}* match your question. "
+                    "Try a broader question, or click **🎯 Focus on one paper** in the welcome message "
+                    "and choose **🔓 Search all papers** to widen the search."
+                )
+            else:
+                response = answer + "\n\n---\n\n**Note:** No relevant passages were found in the literature database."
         else:
             response = answer
+
+    if focus_source:
+        response = f"🎯 *Answering from: {focus_title}*\n\n" + response
 
     msg.content = response
     msg.elements = source_elements
